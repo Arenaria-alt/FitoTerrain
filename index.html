@@ -231,6 +231,19 @@ label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:p
 /* PHOTOS */
 .photorow{display:flex;gap:8px;margin-top:9px}
 .vhfile{position:absolute;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0 0 0 0);border:0;padding:0;margin:-1px}
+.photocap{margin-top:6px}
+.photocap:empty{display:none}
+.photocap .pcrow{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:4px}
+.photocap select,.photocap input{font-family:inherit;font-size:.7rem;padding:5px 6px;border:1px solid var(--bd);border-radius:7px;background:#fff;color:var(--ink)}
+.photocap select{flex:1;min-width:120px}
+.photocap .azin{width:74px}
+.photocap .cbtn-c{background:var(--Gbg);border:1px solid var(--bd);border-radius:7px;padding:5px 8px;font-size:.7rem;cursor:pointer}
+.photocap .pcprev{font-size:.62rem;color:var(--ink2);font-style:italic;margin-top:2px}
+.photocap .pcres{max-height:140px;overflow:auto;border:1px solid var(--bd);border-radius:7px;margin-top:2px}
+.photocap .pcres:empty{display:none}
+.photocap .pcri{padding:6px 8px;font-size:.72rem;border-bottom:1px solid var(--bg2);cursor:pointer}
+.photocap .pcri:hover{background:var(--Gbg)}
+.photocap .pcri i{color:var(--ink2)}
 .photoslot{flex:1;height:84px;border:2px dashed var(--bd);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink3);font-size:.62rem;cursor:pointer;background:var(--bg);position:relative;overflow:hidden}
 .photoslot .pico{font-size:1.3rem;line-height:1}
 .photoslot.filled{border-style:solid;border-color:var(--G)}
@@ -340,6 +353,8 @@ label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:p
             <div class="photoslot" id="ps-0" onclick="photoClick(0)"><span class="pico">📷</span>Foto 1</div>
             <div class="photoslot" id="ps-1" onclick="photoClick(1)"><span class="pico">📷</span>Foto 2</div>
           </div>
+          <div class="photocap" id="pc-0"></div>
+          <div class="photocap" id="pc-1"></div>
           <input type="file" id="cam-0" accept="image/*" capture="environment" class="vhfile" onchange="onPhoto(0,this)">
           <input type="file" id="cam-1" accept="image/*" capture="environment" class="vhfile" onchange="onPhoto(1,this)">
           <div class="hdiv"></div>
@@ -590,7 +605,7 @@ let activeId=null;
 let defaultAuthor='Andrzej Rodziewicz';
 let recent=[],pinned=[];
 
-function normalizePoints(){points.forEach(p=>{if(!Array.isArray(p.photos))p.photos=[null,null];if(!Array.isArray(p.thumbs))p.thumbs=[null,null];while(p.photos.length<2)p.photos.push(null);while(p.thumbs.length<2)p.thumbs.push(null);if(!Array.isArray(p.photoMeta))p.photoMeta=[null,null];while(p.photoMeta.length<2)p.photoMeta.push(null);if(!p.hdr)p.hdr={};['pow','exp','nach','podloze','uwilg','za','zb','zc','zd','ha','hb','woda','sciol','uw'].forEach(k=>{if(p.hdr[k]===undefined)p.hdr[k]='';});if(p.rss===undefined)p.rss='';if(!Array.isArray(p.releve))p.releve=[];if(!Array.isArray(p.flora))p.flora=[];if(!p.simpl||!Array.isArray(p.simpl.dom)||!Array.isArray(p.simpl.ind))p.simpl={dom:(p.simpl&&Array.isArray(p.simpl.dom))?p.simpl.dom:[],ind:(p.simpl&&Array.isArray(p.simpl.ind))?p.simpl.ind:[]};p.simpl.dom.forEach(c=>{if(c.il===undefined)c.il='';});});}
+function normalizePoints(){points.forEach(p=>{if(!Array.isArray(p.photos))p.photos=[null,null];if(!Array.isArray(p.thumbs))p.thumbs=[null,null];while(p.photos.length<2)p.photos.push(null);while(p.thumbs.length<2)p.thumbs.push(null);if(!Array.isArray(p.photoMeta))p.photoMeta=[null,null];while(p.photoMeta.length<2)p.photoMeta.push(null);if(!Array.isArray(p.photoCap))p.photoCap=[null,null];while(p.photoCap.length<2)p.photoCap.push(null);if(!p.hdr)p.hdr={};['pow','exp','nach','podloze','uwilg','za','zb','zc','zd','ha','hb','woda','sciol','uw'].forEach(k=>{if(p.hdr[k]===undefined)p.hdr[k]='';});if(p.rss===undefined)p.rss='';if(!Array.isArray(p.releve))p.releve=[];if(!Array.isArray(p.flora))p.flora=[];if(!p.simpl||!Array.isArray(p.simpl.dom)||!Array.isArray(p.simpl.ind))p.simpl={dom:(p.simpl&&Array.isArray(p.simpl.dom))?p.simpl.dom:[],ind:(p.simpl&&Array.isArray(p.simpl.ind))?p.simpl.ind:[]};p.simpl.dom.forEach(c=>{if(c.il===undefined)c.il='';});});}
 function loadState(){
   try{points=JSON.parse(localStorage.getItem('ft_points')||'[]');}catch(e){points=[];}
   try{track=JSON.parse(localStorage.getItem('ft_track')||'null')||{name:'Trasa terenowa',points:[]};}catch(e){track={name:'Trasa terenowa',points:[]};}
@@ -685,7 +700,83 @@ function renderPhotos(){
       el.classList.remove('filled');
       el.innerHTML='<span class="pico">📷</span>Foto '+(slot+1);
     }
+    renderPhotoCap(slot);
   });
+}
+function renderPhotoCap(slot){
+  const box=document.getElementById('pc-'+slot);if(!box)return;
+  const p=activePoint();
+  if(!p||!p.photos||!p.photos[slot]){box.innerHTML='';return;}
+  if(!Array.isArray(p.photoCap))p.photoCap=[null,null];
+  const cap=p.photoCap[slot]||{};
+  const typ=cap.typ||'';
+  let html='<div class="pcrow"><select onchange="setPhotoTyp('+slot+',this.value)">'
+    +'<option value=""'+(typ===''?' selected':'')+'>— typ podpisu —</option>'
+    +'<option value="widok"'+(typ==='widok'?' selected':'')+'>Widok na działkę</option>'
+    +'<option value="rzut"'+(typ==='rzut'?' selected':'')+'>Rzut poziomy runi</option>'
+    +'<option value="gatunek"'+(typ==='gatunek'?' selected':'')+'>Gatunek wskaźnikowy</option>'
+    +'</select>';
+  if(typ==='widok'){
+    html+='<input class="azin" type="number" inputmode="numeric" min="0" max="359" placeholder="azymut°" value="'+(cap.az!=null?cap.az:'')+'" oninput="setPhotoAz('+slot+',this.value)">'
+      +'<button type="button" class="cbtn-c" onclick="readCompass('+slot+')">🧭</button>';
+  }
+  html+='</div>';
+  if(typ==='gatunek'){
+    const lak=cap.lak||localStorage.getItem('ft_lastlak')||'swieze';
+    html+='<div class="pcrow"><select onchange="setPhotoLak('+slot+',this.value)">';
+    LAK_TYPY.forEach(L=>{html+='<option value="'+L.k+'"'+(lak===L.k?' selected':'')+'>'+esc(L.label)+'</option>';});
+    html+='</select></div>';
+    // gatunki z tego punktu pod ręką + opcja wyszukania z bazy
+    const list=curList();
+    html+='<div class="pcrow"><select onchange="setPhotoSp('+slot+',this.value)">';
+    html+='<option value="">— wybierz gatunek —</option>';
+    const seen={};list.forEach(c=>{if(c&&c.lac&&!seen[c.lac]){seen[c.lac]=1;html+='<option value="'+esc(c.lac)+'"'+(cap.spLac===c.lac?' selected':'')+'>'+esc(c.pl+' ('+abbrLat(c.lac)+')')+'</option>';}});
+    if(cap.spLac&&!seen[cap.spLac])html+='<option value="'+esc(cap.spLac)+'" selected>'+esc((cap.spPl||'')+' ('+abbrLat(cap.spLac)+')')+'</option>';
+    html+='<option value="__db__">🔍 inny — z bazy…</option></select></div>';
+    if(cap._sb){
+      html+='<div class="pcrow"><input type="text" placeholder="szukaj gatunku (łac./pol.)" oninput="searchPhotoSp('+slot+',this.value)"></div>';
+      html+='<div class="pcres" id="pcres-'+slot+'"></div>';
+    }
+  }
+  const prev=buildPhotoOpis(p,slot);
+  html+='<div class="pcprev">'+(prev?('„'+esc(prev)+'"'):'podpis: (ogólny)')+'</div>';
+  box.innerHTML=html;
+}
+function ensureCap(p,slot){if(!Array.isArray(p.photoCap))p.photoCap=[null,null];if(!p.photoCap[slot])p.photoCap[slot]={};return p.photoCap[slot];}
+function setPhotoTyp(slot,v){const p=activePoint();if(!p)return;const c=ensureCap(p,slot);c.typ=v;savePoints();renderPhotoCap(slot);}
+function setPhotoAz(slot,v){const p=activePoint();if(!p)return;const c=ensureCap(p,slot);v=(v||'').toString().replace(/[^0-9]/g,'');c.az=(v===''?'':Math.max(0,Math.min(359,parseInt(v,10))));savePoints();const box=document.getElementById('pc-'+slot);if(box){const pr=box.querySelector('.pcprev');if(pr){const t=buildPhotoOpis(p,slot);pr.textContent=t?('„'+t+'"'):'podpis: (ogólny)';}}}
+const LAK_TYPY=[{k:'swieze',label:'łąki świeże',suf:'łąk świeżych'},{k:'wilgotne',label:'łąki wilgotne',suf:'łąk wilgotnych'},{k:'selernicowe',label:'łąki selernicowe',suf:'łąk selernicowych'},{k:'murawy',label:'murawy ciepłolubne',suf:'muraw ciepłolubnych'},{k:'trzeslicowe',label:'łąki trzęślicowe',suf:'łąk trzęślicowych'},{k:'slonorosla',label:'słonorośla',suf:'słonorośli'},{k:'torfowiska',label:'torfowiska',suf:'torfowisk'}];
+function lakSuf(k){const L=LAK_TYPY.find(x=>x.k===k);return L?L.suf:'łąk świeżych';}
+function setPhotoLak(slot,v){const p=activePoint();if(!p)return;const c=ensureCap(p,slot);c.lak=v;try{localStorage.setItem('ft_lastlak',v);}catch(e){}savePoints();renderPhotoCap(slot);}
+function setPhotoSp(slot,v){const p=activePoint();if(!p)return;const c=ensureCap(p,slot);
+  if(v==='__db__'){c._sb=true;renderPhotoCap(slot);return;}
+  c._sb=false;
+  if(v===''){c.spLac='';c.spPl='';}
+  else{const sp=DB.find(s=>s.lac===v)||curList().find(s=>s.lac===v);c.spLac=v;c.spPl=sp?sp.pl:'';}
+  if(!c.lak)c.lak=localStorage.getItem('ft_lastlak')||'swieze';
+  savePoints();renderPhotoCap(slot);}
+function searchPhotoSp(slot,q){const box=document.getElementById('pcres-'+slot);if(!box)return;q=(q||'').trim().toLowerCase();
+  if(q.length<2){box.innerHTML='';return;}
+  const res=DB.filter(s=>s.lac.toLowerCase().includes(q)||s.pl.toLowerCase().includes(q)).slice(0,20);
+  box.innerHTML=res.map(s=>{const j=s.lac.replace(/\\/g,'\\\\').replace(/'/g,"\\'");return '<div class="pcri" onclick="pickPhotoSp('+slot+',\''+j+'\')">'+esc(s.pl)+' <i>('+esc(s.lac)+')</i></div>';}).join('')||'<div class="pcprev">brak wyników</div>';}
+function pickPhotoSp(slot,lac){const p=activePoint();if(!p)return;const c=ensureCap(p,slot);const sp=DB.find(s=>s.lac===lac);c.spLac=lac;c.spPl=sp?sp.pl:'';c._sb=false;if(!c.lak)c.lak=localStorage.getItem('ft_lastlak')||'swieze';savePoints();renderPhotoCap(slot);}
+function readCompass(slot){
+  const set=h=>{if(h==null||isNaN(h))return;const v=Math.round((h%360+360)%360);const p=activePoint();if(!p)return;ensureCap(p,slot).az=v;savePoints();renderPhotoCap(slot);showToast('🧭 Azymut ~'+v+'° (popraw w razie potrzeby)');};
+  const once=e=>{let h=null;if(e.webkitCompassHeading!=null&&!isNaN(e.webkitCompassHeading))h=e.webkitCompassHeading;else if(e.alpha!=null)h=(360-e.alpha)%360;if(h!=null){set(h);window.removeEventListener('deviceorientationabsolute',once,true);window.removeEventListener('deviceorientation',once,true);}};
+  const start=()=>{window.addEventListener('deviceorientationabsolute',once,true);window.addEventListener('deviceorientation',once,true);setTimeout(()=>{window.removeEventListener('deviceorientationabsolute',once,true);window.removeEventListener('deviceorientation',once,true);},4000);};
+  try{
+    if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+      DeviceOrientationEvent.requestPermission().then(s=>{if(s==='granted')start();else showToast('Brak zgody na kompas — wpisz azymut ręcznie');}).catch(()=>showToast('Kompas niedostępny — wpisz ręcznie'));
+    } else start();
+  }catch(e){showToast('Kompas niedostępny — wpisz ręcznie');}
+}
+function buildPhotoOpis(p,slot){
+  const cap=(Array.isArray(p.photoCap)?p.photoCap[slot]:null);if(!cap||!cap.typ)return '';
+  const rss=p.rss||'—';
+  if(cap.typ==='widok')return 'Widok na działkę '+rss+' (z pozycji GPS'+(cap.az!=null&&cap.az!==''?', azymut '+cap.az+'°':'')+')';
+  if(cap.typ==='rzut')return 'Rzut poziomy runi na działce '+rss+' — '+(p.type==='releve'?'zdjęcie fitosocjologiczne':'spis uproszczony')+' nr '+p.nr;
+  if(cap.typ==='gatunek'){if(!cap.spLac)return '';const pl=(cap.spPl||'').replace(/\([^)]*\)/g,'').replace(/\s+/g,' ').trim();return (pl?pl+' ':'')+'('+cap.spLac+') - gatunek wskaźnikowy '+lakSuf(cap.lak||'swieze');}
+  return '';
 }
 async function viewPhoto(slot){
   const p=activePoint();if(!p||!p.photos[slot])return;
@@ -697,7 +788,7 @@ function closeLightbox(){const lb=document.getElementById('lightbox');lb.classLi
 async function delPhoto(slot){
   const p=activePoint();if(!p||!p.photos[slot])return;
   if(!confirm('Usunąć Foto '+(slot+1)+'?'))return;
-  await idbDel(p.photos[slot]);p.photos[slot]=null;p.thumbs[slot]=null;if(Array.isArray(p.photoMeta))p.photoMeta[slot]=null;savePoints();renderPhotos();renderPointsList();updateHdrSummary();
+  await idbDel(p.photos[slot]);p.photos[slot]=null;p.thumbs[slot]=null;if(Array.isArray(p.photoMeta))p.photoMeta[slot]=null;if(Array.isArray(p.photoCap))p.photoCap[slot]=null;savePoints();renderPhotos();renderPointsList();updateHdrSummary();
   showToast('🗑 Foto usunięte');
 }
 
@@ -955,7 +1046,7 @@ function createPoint(lat,lon){
   hdr.uw='';
   const p={id:uid(),lat:+lat.toFixed(6),lon:+lon.toFixed(6),nr,note:'',type:'releve',
     aut:defaultAuthor,date:new Date().toISOString().slice(0,10),rss:(prev?prev.rss||'':''),
-    hdr,releve:[],flora:[],simpl:{dom:[],ind:[]},photos:[null,null],thumbs:[null,null],photoMeta:[null,null]};
+    hdr,releve:[],flora:[],simpl:{dom:[],ind:[]},photos:[null,null],thumbs:[null,null],photoMeta:[null,null],photoCap:[null,null]};
   points.push(p);savePoints();setActive(p.id);
   renderPointMarkers();renderPointsList();updBadges();
   showToast(prev?('✓ Punkt '+nr+' · główkę skopiowano z pkt '+prev.nr):('✓ Punkt '+nr+' dodany'));
@@ -1395,7 +1486,8 @@ async function exportZip(){
         zwarcie_A:p.hdr.za||'',zwarcie_B:p.hdr.zb||'',zwarcie_C:p.hdr.zc||'',zwarcie_D:p.hdr.zd||'',
         pokr_woda:p.hdr.woda||'',pokr_sciol:p.hdr.sciol||'',
         wys_A:p.hdr.ha||'',wys_B:p.hdr.hb||'',uwagi:p.hdr.uw||'',
-        n_gat:ng,foto1:fn[0],foto1_data:fdat(0),foto2:fn[1],foto2_data:fdat(1),gatunki:gat
+        n_gat:ng,foto1:fn[0],foto1_data:fdat(0),foto1_opis:buildPhotoOpis(p,0),
+        foto2:fn[1],foto2_data:fdat(1),foto2_opis:buildPhotoOpis(p,1),gatunki:gat
       }};
     });
     zip.file('punkty.geojson',JSON.stringify({type:'FeatureCollection',name:'punkty_fitosocjologiczne',crs:{type:'name',properties:{name:'urn:ogc:def:crs:OGC:1.3:CRS84'}},features:feats},null,1));
@@ -1408,13 +1500,14 @@ async function exportZip(){
     });
     zip.file('gatunki.csv',csv);
     const fdir=zip.folder('foto');let nf=0;
-    let fcsv='\ufeffpoint_id;nr;plik;lat;lon;data\n';
+    let fcsv='\ufeffpoint_id;nr;plik;lat;lon;data;opis\n';
     let hasF=false;
     for(const p of points){for(let s=0;s<2;s++){if(p.photos&&p.photos[s]){
       const plik='pt'+pad(p.nr)+'_'+(s+1)+'.jpg';
       try{const rec=await idbGet(p.photos[s]);if(rec&&rec.blob){fdir.file(plik,rec.blob);nf++;}}catch(e){}
       const m=(Array.isArray(p.photoMeta)?p.photoMeta[s]:null)||{};hasF=true;
-      fcsv+=[p.id,p.nr,plik,(m.lat!=null?m.lat:p.lat),(m.lon!=null?m.lon:p.lon),(m.date||p.date||'')].join(';')+'\n';
+      const opis=buildPhotoOpis(p,s).replace(/;/g,',');
+      fcsv+=[p.id,p.nr,plik,(m.lat!=null?m.lat:p.lat),(m.lon!=null?m.lon:p.lon),(m.date||p.date||''),opis].join(';')+'\n';
     }}}
     if(hasF)zip.file('fotografie.csv',fcsv);
     if(track.points.length)zip.file('slad.gpx',buildGPX());
