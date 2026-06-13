@@ -478,6 +478,21 @@ label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:p
         <button class="btn btn-warn" onclick="resetProject()">🗑 Wyczyść projekt</button>
       </div>
     </div>
+    <div class="card" style="border-color:var(--Bl)">
+      <h3>🗺️ Mapa offline</h3>
+      <p style="margin-bottom:10px">Pobiera kafle satelitarne tylko dla obszaru wczytanych działek (do z17), żeby mapa była widoczna w terenie bez zasięgu. Kafle zapisują się w pamięci urządzenia, nie w pliku aplikacji.</p>
+      <div class="hrow" style="margin-bottom:9px">
+        <label style="font-size:.62rem">Token Mapbox (pk.…)</label>
+      </div>
+      <input class="fw" id="mb-token" placeholder="opcjonalnie: wklej swój token Mapbox" style="width:100%;margin-bottom:4px" oninput="saveMbToken(this.value)">
+      <p style="font-size:.56rem;color:var(--ink3);margin-bottom:10px">Zapisywany tylko na tym urządzeniu. Bez tokenu użyty będzie podkład Esri. Zalecane: ogranicz token do domeny w panelu Mapbox.</p>
+      <div class="btns-col">
+        <button class="btn btn-bl" id="dl-tiles" onclick="downloadTiles()">⬇ Pobierz kafle dla działek</button>
+        <button class="btn btn-s" onclick="tilesInfo()">ℹ️ Ile zajmują kafle offline</button>
+        <button class="btn btn-warn" onclick="clearTiles()">🗑 Wyczyść kafle offline</button>
+      </div>
+      <p id="tiles-status" style="font-size:.62rem;color:var(--ink2);margin-top:9px"></p>
+    </div>
   </div>
 </div>
 
@@ -680,9 +695,13 @@ async function delPhoto(slot){
 
 /* ========================= MAPA ========================= */
 let map,baseLayers,baseIdx=0,areaGroup,parcelLayers=[],trackLine,trackPtMarkers,ptMarkerGroup,posMarker,accCircle;
+function mbToken(){return (localStorage.getItem('ft_mbtoken')||'').trim();}
+function osmUrl(){return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';}
+function satUrl(){const t=mbToken();return t?('https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token='+t):'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';}
+function satName(){return mbToken()?'🛰️ Satelita (Mapbox)':'🛰️ Satelita (Esri)';}
 const BASES=[
-  {name:'🗺️ Mapa',layer:()=>L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'})},
-  {name:'🛰️ Satelita',layer:()=>L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:20,attribution:'© Esri'})},
+  {name:'🗺️ Mapa',layer:()=>L.tileLayer(osmUrl(),{maxZoom:19,attribution:'© OpenStreetMap'})},
+  {name:'🛰️ Satelita',layer:()=>L.tileLayer(satUrl(),{maxZoom:20,attribution:mbToken()?'© Mapbox © Maxar':'© Esri'})},
 ];
 let currentBase;
 let mapMode='nav';
@@ -707,6 +726,50 @@ function cycleBase(){
   currentBase=BASES[baseIdx].layer().addTo(map);
   currentBase.bringToBack();
   document.getElementById('lyr-btn').textContent=BASES[(baseIdx+1)%BASES.length].name;
+}
+/* ----- MAPA OFFLINE: kafle dla działek ----- */
+function saveMbToken(v){localStorage.setItem('ft_mbtoken',(v||'').trim());}
+function lon2x(lon,z){return Math.floor((lon+180)/360*Math.pow(2,z));}
+function lat2y(lat,z){const r=lat*Math.PI/180;return Math.floor((1-Math.log(Math.tan(r)+1/Math.cos(r))/Math.PI)/2*Math.pow(2,z));}
+function parcelBounds(){if(!parcelLayers.length)return null;const b=L.latLngBounds([]);parcelLayers.forEach(l=>{if(l.getBounds)b.extend(l.getBounds());});return b.isValid()?b:null;}
+const TILE_CACHE='ft-tiles',ZMIN=12,ZMAX=17,TILE_CAP=3500;
+function tileUrlsForBounds(b){
+  const tpl=satUrl(),urls=[];
+  for(let z=ZMIN;z<=ZMAX;z++){
+    const x0=lon2x(b.getWest(),z),x1=lon2x(b.getEast(),z),y0=lat2y(b.getNorth(),z),y1=lat2y(b.getSouth(),z);
+    for(let x=Math.min(x0,x1);x<=Math.max(x0,x1);x++)for(let y=Math.min(y0,y1);y<=Math.max(y0,y1);y++)
+      urls.push(tpl.replace('{z}',z).replace('{x}',x).replace('{y}',y));
+  }
+  return urls;
+}
+function setTilesStatus(t){const el=document.getElementById('tiles-status');if(el)el.textContent=t;}
+async function downloadTiles(){
+  const b=parcelBounds();
+  if(!b){showToast('Najpierw wczytaj działki (KML/GeoJSON)');return;}
+  if(!('caches'in window)){showToast('Brak obsługi pamięci offline');return;}
+  const urls=tileUrlsForBounds(b),n=urls.length,mb=(n*30/1024).toFixed(1);
+  if(n>TILE_CAP){setTilesStatus('Za duży obszar: '+n+' kafli (limit '+TILE_CAP+'). Zmniejsz obszar działek.');showToast('Za dużo kafli: '+n);return;}
+  if(!confirm('Pobrać '+n+' kafli (~'+mb+' MB, '+satName().replace(/.*\(|\)/g,'')+') dla obszaru działek? Wymaga sieci.'))return;
+  const btn=document.getElementById('dl-tiles');btn.disabled=true;
+  const cache=await caches.open(TILE_CACHE);
+  let done=0,failed=0,i=0;
+  async function worker(){while(i<urls.length){const u=urls[i++];try{const resp=await fetch(u,{mode:'no-cors'});await cache.put(u,resp);}catch(e){failed++;}done++;if(done%10===0||done===urls.length)setTilesStatus('Pobieranie… '+done+'/'+urls.length+(failed?(' · błędy '+failed):''));}}
+  setTilesStatus('Pobieranie… 0/'+urls.length);
+  await Promise.all(Array.from({length:4},()=>worker()));
+  btn.disabled=false;
+  showToast('✓ Offline: zapisano kafle');
+  tilesInfo();
+}
+async function tilesInfo(){
+  if(!('caches'in window)){setTilesStatus('Brak obsługi pamięci offline w tej przeglądarce');return;}
+  try{const c=await caches.open(TILE_CACHE),keys=await c.keys();let extra='';
+    if(navigator.storage&&navigator.storage.estimate){const est=await navigator.storage.estimate();extra=' · całość ~'+(est.usage/1048576).toFixed(1)+' MB';}
+    setTilesStatus(keys.length?('Zapisane kafle: '+keys.length+' (~'+(keys.length*30/1024).toFixed(1)+' MB)'+extra):'Brak zapisanych kafli offline.');
+  }catch(e){setTilesStatus('Błąd: '+e.message);}
+}
+async function clearTiles(){
+  if(!confirm('Usunąć wszystkie kafle offline?'))return;
+  try{await caches.delete(TILE_CACHE);setTilesStatus('Kafle offline usunięte.');showToast('🗑 Usunięto kafle offline');}catch(e){showToast('Błąd: '+e.message);}
 }
 function setMapMode(m){
   mapMode=m;
@@ -1406,6 +1469,7 @@ function goTab(t){
   if(t==='map'&&map)setTimeout(()=>map.invalidateSize(),60);
   if(t==='survey')loadSurvey();
   if(t==='points')renderPointsList();
+  if(t==='export'){const el=document.getElementById('mb-token');if(el)el.value=mbToken();tilesInfo();}
   if(t==='db')updateDBStats();
 }
 function updBadges(){
@@ -1421,6 +1485,7 @@ window.addEventListener('load',()=>{
   initMap();
   setMapMode('nav');
   updateDBStats();renderPointsList();updBadges();loadSurvey();
+  if('serviceWorker' in navigator){navigator.serviceWorker.register('sw.js').catch(()=>{});}
 });
 </script>
 </body>
