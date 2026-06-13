@@ -332,6 +332,10 @@ label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:p
             <label>👤</label><input class="fw" id="pt-aut" placeholder="Autor" oninput="updPoint('aut',this.value)">
             <label>📅</label><input class="fmed" type="date" id="pt-date" onchange="updPoint('date',this.value)">
           </div>
+          <div class="hrow">
+            <label>RSS</label><input class="fmed grow" id="pt-rss" placeholder="działka RSS (np. RSS-1)" oninput="updPoint('rss',this.value)">
+            <button class="ibtn" type="button" onclick="autoAssignRSS()" title="Przypisz wg działek z KML">🎯</button>
+          </div>
           <div class="photorow">
             <div class="photoslot" id="ps-0" onclick="photoClick(0)"><span class="pico">📷</span>Foto 1</div>
             <div class="photoslot" id="ps-1" onclick="photoClick(1)"><span class="pico">📷</span>Foto 2</div>
@@ -379,6 +383,10 @@ label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:p
               <label>Wys.A</label><input class="fn" type="number" id="h-ha" placeholder="m" min="0" step="0.1" oninput="updHdr('ha',this.value)">
               <label>Wys.B</label><input class="fn" type="number" id="h-hb" placeholder="m" min="0" step="0.1" oninput="updHdr('hb',this.value)">
             </div>
+            <div class="hrow">
+              <label>Woda</label><input class="fn" type="number" id="h-woda" placeholder="%" min="0" max="100" oninput="updHdr('woda',this.value)" title="% otwartego lustra wody">
+              <label>Ściółka</label><input class="fn" type="number" id="h-sciol" placeholder="%" min="0" max="100" oninput="updHdr('sciol',this.value)" title="% wojłoku / martwej biomasy">
+            </div>
           </div>
           <div class="hrow">
             <label>Uwagi</label><input class="fw" id="h-uw" placeholder="uwagi" maxlength="160" oninput="updHdr('uw',this.value)">
@@ -393,7 +401,7 @@ label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:p
       <button class="ibtn" onclick="clearSrch()">✕</button>
     </div>
     <div class="simpl-sub" id="simpl-sub" style="display:none">
-      <button class="ssub on" id="sub-dom" onclick="setSub('dom')">Panujące (%) <b id="cnt-dom">0/5</b></button>
+      <button class="ssub on" id="sub-dom" onclick="setSub('dom')">Panujące <b id="cnt-dom">0/5</b></button>
       <button class="ssub" id="sub-ind" onclick="setSub('ind')">Wskaźnikowe <b id="cnt-ind">0/15</b></button>
     </div>
     <div class="shint">
@@ -582,7 +590,7 @@ let activeId=null;
 let defaultAuthor='Andrzej Rodziewicz';
 let recent=[],pinned=[];
 
-function normalizePoints(){points.forEach(p=>{if(!Array.isArray(p.photos))p.photos=[null,null];if(!Array.isArray(p.thumbs))p.thumbs=[null,null];while(p.photos.length<2)p.photos.push(null);while(p.thumbs.length<2)p.thumbs.push(null);if(!Array.isArray(p.photoMeta))p.photoMeta=[null,null];while(p.photoMeta.length<2)p.photoMeta.push(null);if(!p.hdr)p.hdr={};['pow','exp','nach','podloze','uwilg','za','zb','zc','zd','ha','hb','uw'].forEach(k=>{if(p.hdr[k]===undefined)p.hdr[k]='';});if(!Array.isArray(p.releve))p.releve=[];if(!Array.isArray(p.flora))p.flora=[];if(!p.simpl||!Array.isArray(p.simpl.dom)||!Array.isArray(p.simpl.ind))p.simpl={dom:(p.simpl&&Array.isArray(p.simpl.dom))?p.simpl.dom:[],ind:(p.simpl&&Array.isArray(p.simpl.ind))?p.simpl.ind:[]};});}
+function normalizePoints(){points.forEach(p=>{if(!Array.isArray(p.photos))p.photos=[null,null];if(!Array.isArray(p.thumbs))p.thumbs=[null,null];while(p.photos.length<2)p.photos.push(null);while(p.thumbs.length<2)p.thumbs.push(null);if(!Array.isArray(p.photoMeta))p.photoMeta=[null,null];while(p.photoMeta.length<2)p.photoMeta.push(null);if(!p.hdr)p.hdr={};['pow','exp','nach','podloze','uwilg','za','zb','zc','zd','ha','hb','woda','sciol','uw'].forEach(k=>{if(p.hdr[k]===undefined)p.hdr[k]='';});if(p.rss===undefined)p.rss='';if(!Array.isArray(p.releve))p.releve=[];if(!Array.isArray(p.flora))p.flora=[];if(!p.simpl||!Array.isArray(p.simpl.dom)||!Array.isArray(p.simpl.ind))p.simpl={dom:(p.simpl&&Array.isArray(p.simpl.dom))?p.simpl.dom:[],ind:(p.simpl&&Array.isArray(p.simpl.ind))?p.simpl.ind:[]};p.simpl.dom.forEach(c=>{if(c.il===undefined)c.il='';});});}
 function loadState(){
   try{points=JSON.parse(localStorage.getItem('ft_points')||'[]');}catch(e){points=[];}
   try{track=JSON.parse(localStorage.getItem('ft_track')||'null')||{name:'Trasa terenowa',points:[]};}catch(e){track={name:'Trasa terenowa',points:[]};}
@@ -694,7 +702,7 @@ async function delPhoto(slot){
 }
 
 /* ========================= MAPA ========================= */
-let map,baseLayers,baseIdx=0,areaGroup,parcelLayers=[],trackLine,trackPtMarkers,ptMarkerGroup,posMarker,accCircle;
+let map,baseLayers,baseIdx=0,areaGroup,parcelLayers=[],parcelPolys=[],trackLine,trackPtMarkers,ptMarkerGroup,posMarker,accCircle;
 function mbToken(){return (localStorage.getItem('ft_mbtoken')||'').trim();}
 function osmUrl(){return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';}
 function satUrl(){const t=mbToken();return t?('https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token='+t):'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';}
@@ -820,6 +828,7 @@ function renderParcels(fit){
             const ly=L.polygon(coords,{color:'#ff7800',weight:2,fillColor:'#ffaa00',fillOpacity:.18}).addTo(areaGroup);
             ly.bindPopup('<strong>'+esc(nm)+'</strong><br>'+ha.toFixed(2)+' ha');
             parcelLayers.push(ly);
+            parcelPolys.push({name:nm,rings:[coords]});
           }
         });
       });
@@ -835,6 +844,7 @@ function renderParcels(fit){
           totalHa+=ha;count++;
           lyr.bindPopup('<strong>'+esc(String(nm))+'</strong>'+(ha>0?'<br>'+ha.toFixed(2)+' ha':''));
           parcelLayers.push(lyr);
+          if(lyr.getLatLngs)parcelPolys.push({name:String(nm),rings:llToRings(lyr.getLatLngs())});
         }}).addTo(areaGroup);
     }
   }catch(err){showToast('Błąd działek: '+err.message);return;}
@@ -848,7 +858,22 @@ function renderParcels(fit){
     if(fit)showToast('✓ Wczytano '+count+' działek');
   } else showToast('Brak obszarów w pliku');
 }
-function clearParcelLayers(){parcelLayers.forEach(l=>areaGroup.removeLayer(l));parcelLayers=[];}
+function clearParcelLayers(){parcelLayers.forEach(l=>areaGroup.removeLayer(l));parcelLayers=[];parcelPolys=[];}
+function llToRings(lls){const rings=[];const walk=a=>{if(!a)return;if(Array.isArray(a)&&a.length&&a[0]&&a[0].lat!==undefined){rings.push(a.map(p=>[p.lat,p.lng]));}else if(Array.isArray(a)){a.forEach(walk);}};walk(lls);return rings;}
+function pipRing(lat,lon,ring){let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const yi=ring[i][0],xi=ring[i][1],yj=ring[j][0],xj=ring[j][1];const denom=(yj-yi)||1e-12;if(((yi>lat)!==(yj>lat))&&(lon<(xj-xi)*(lat-yi)/denom+xi))inside=!inside;}return inside;}
+function parcelIdxForPoint(lat,lon){for(let i=0;i<parcelPolys.length;i++){for(const ring of parcelPolys[i].rings){if(ring.length>2&&pipRing(lat,lon,ring))return i;}}return -1;}
+function autoAssignRSS(){
+  if(!parcelPolys.length){showToast('Najpierw wczytaj działki (KML/GeoJSON)');return;}
+  let filled=0,kept=0,outside=0;
+  points.forEach(p=>{
+    if(p.rss&&String(p.rss).trim()){kept++;return;}
+    const idx=parcelIdxForPoint(p.lat,p.lon);
+    if(idx>=0){p.rss='RSS-'+(idx+1);filled++;}else outside++;
+  });
+  savePoints();renderPointsList();
+  const ap=activePoint();if(ap){const el=document.getElementById('pt-rss');if(el)el.value=ap.rss||'';}
+  showToast('🎯 RSS — przypisano: '+filled+', zostawiono: '+kept+(outside?(', poza działkami: '+outside):''));
+}
 function clearParcels(){if(!confirm('Usunąć wczytane działki?'))return;clearParcelLayers();parcels=null;saveParcels();document.getElementById('parcelinfo').style.display='none';document.getElementById('parcel-clear').style.display='none';}
 function polyArea(ll){const R=6371000;let a=0;if(ll.length<3)return 0;for(let i=0;i<ll.length;i++){const p1=ll[i],p2=ll[(i+1)%ll.length];const la1=(p1.lat!==undefined?p1.lat:p1[0])*Math.PI/180,la2=(p2.lat!==undefined?p2.lat:p2[0])*Math.PI/180;const lo1=(p1.lng!==undefined?p1.lng:p1[1])*Math.PI/180,lo2=(p2.lng!==undefined?p2.lng:p2[1])*Math.PI/180;a+=(lo2-lo1)*(2+Math.sin(la1)+Math.sin(la2));}return Math.abs(a*R*R/2);}
 function esc(t){return (t||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
@@ -926,10 +951,10 @@ function locate(){
 function createPoint(lat,lon){
   const nr=points.length+1;
   const prev=points[points.length-1];
-  const hdr=prev?Object.assign({},prev.hdr):{pow:'',exp:'',nach:'',podloze:'',uwilg:'',za:'',zb:'',zc:'',zd:'',ha:'',hb:'',uw:''};
+  const hdr=prev?Object.assign({},prev.hdr):{pow:'',exp:'',nach:'',podloze:'',uwilg:'',za:'',zb:'',zc:'',zd:'',ha:'',hb:'',woda:'',sciol:'',uw:''};
   hdr.uw='';
   const p={id:uid(),lat:+lat.toFixed(6),lon:+lon.toFixed(6),nr,note:'',type:'releve',
-    aut:defaultAuthor,date:new Date().toISOString().slice(0,10),
+    aut:defaultAuthor,date:new Date().toISOString().slice(0,10),rss:(prev?prev.rss||'':''),
     hdr,releve:[],flora:[],simpl:{dom:[],ind:[]},photos:[null,null],thumbs:[null,null],photoMeta:[null,null]};
   points.push(p);savePoints();setActive(p.id);
   renderPointMarkers();renderPointsList();updBadges();
@@ -976,7 +1001,8 @@ function loadSurvey(){
   document.getElementById('pt-coords').textContent=p.lat.toFixed(5)+', '+p.lon.toFixed(5);
   document.getElementById('pt-aut').value=p.aut||'';
   document.getElementById('pt-date').value=p.date||'';
-  ['pow','exp','nach','podloze','uwilg','za','zb','zc','zd','ha','hb','uw'].forEach(k=>{const el=document.getElementById('h-'+k);if(el)el.value=p.hdr[k]||'';});
+  document.getElementById('pt-rss').value=p.rss||'';
+  ['pow','exp','nach','podloze','uwilg','za','zb','zc','zd','ha','hb','woda','sciol','uw'].forEach(k=>{const el=document.getElementById('h-'+k);if(el)el.value=p.hdr[k]||'';});
   subSel='dom';
   setTypeUI(p.type);
   applyHdrState();updateHdrSummary();
@@ -1133,7 +1159,7 @@ function addDom(skr){
   if(p.simpl.dom.some(c=>c.skr===skr)){showToast('Już wśród panujących');return;}
   if(p.simpl.dom.length>=5){showToast('Limit: 5 gatunków panujących');return;}
   const sp=DB.find(s=>s.skr===skr);if(!sp)return;
-  p.simpl.dom.push({skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v',pct:''});noteRecent(sp.skr);
+  p.simpl.dom.push({skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v',il:''});noteRecent(sp.skr);
   savePoints();renderTable();updBadges();updSubCounts();
   document.getElementById('si').value='';doSrch();document.getElementById('si').focus();
   showToast('✓ panujący: '+sp.lac);
@@ -1150,7 +1176,7 @@ function addInd(skr){
 }
 function delDom(skr){const p=activePoint();if(!p)return;p.simpl.dom=p.simpl.dom.filter(c=>c.skr!==skr);savePoints();renderTable();updBadges();updSubCounts();doSrch();}
 function delInd(skr){const p=activePoint();if(!p)return;p.simpl.ind=p.simpl.ind.filter(c=>c.skr!==skr);savePoints();renderTable();updBadges();updSubCounts();doSrch();}
-function setPct(skr,v){const p=activePoint();if(!p)return;const c=p.simpl.dom.find(x=>x.skr===skr);if(!c)return;v=(v||'').toString().replace(/[^0-9]/g,'');if(v!=='')v=Math.max(0,Math.min(100,parseInt(v,10))).toString();c.pct=v;savePoints();}
+function setDomIl(skr,v){const p=activePoint();if(!p)return;const c=p.simpl.dom.find(x=>x.skr===skr);if(!c)return;c.il=(c.il===v?'':v);savePoints();renderTable();}
 
 const BBS=['5','4','3','2','1','+','r'];
 const FREQS=['+','++','+++','++++','+++++'];
@@ -1190,14 +1216,14 @@ function renderTable(){
     });
     document.getElementById('tbody').innerHTML=html;
   } else {
-    document.getElementById('thead').innerHTML='<tr><th>L.p.</th><th></th><th class="tl">Łac.</th><th class="tl">Pol.</th><th>Ochr.</th><th>Udział</th><th></th></tr>';
+    document.getElementById('thead').innerHTML='<tr><th>L.p.</th><th></th><th class="tl">Łac.</th><th class="tl">Pol.</th><th>Ochr.</th><th>Ilość.</th><th></th></tr>';
     let html='';
-    html+='<tr><td colspan="7" class="shdr dom">⭐ Gatunki panujące — '+p.simpl.dom.length+'/5 (udział %)</td></tr>';
-    if(p.simpl.dom.length===0)html+='<tr><td colspan="7" class="tn" style="padding:8px 10px;text-align:left">— brak — wybierz „Panujące (%)” i dodaj gatunki</td></tr>';
+    html+='<tr><td colspan="7" class="shdr dom">⭐ Gatunki panujące — '+p.simpl.dom.length+'/5 (ilościowość)</td></tr>';
+    if(p.simpl.dom.length===0)html+='<tr><td colspan="7" class="tn" style="padding:8px 10px;text-align:left">— brak — wybierz „Panujące” i dodaj gatunki</td></tr>';
     p.simpl.dom.forEach((s,i)=>{
       const grpCls=isB(s)?'b':isL(s)?'l':'v',grpLbl=isB(s)?'MSZ':isL(s)?'POR':'NAC';
       const skrJ=s.skr.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-      html+='<tr><td class="tn">'+(i+1)+'</td><td class="tgrp"><span class="'+grpCls+'">'+grpLbl+'</span></td><td class="tlac">'+s.lac+'</td><td class="tpl">'+s.pl+'</td><td class="tprot">'+(s.prot?'<span>'+s.prot+'</span>':'')+'</td><td><input class="pctin" type="number" min="0" max="100" inputmode="numeric" value="'+(s.pct||'')+'" placeholder="%" oninput="setPct(\''+skrJ+'\',this.value)"></td><td><button class="delbtn" onclick="delDom(\''+skrJ+'\')">✕</button></td></tr>';
+      html+='<tr><td class="tn">'+(i+1)+'</td><td class="tgrp"><span class="'+grpCls+'">'+grpLbl+'</span></td><td class="tlac">'+s.lac+'</td><td class="tpl">'+s.pl+'</td><td class="tprot">'+(s.prot?'<span>'+s.prot+'</span>':'')+'</td><td><div class="bbsel">'+BBS.map(v=>'<button class="bb'+(s.il===v?' on':'')+'" data-v="'+v+'" onclick="setDomIl(\''+skrJ+'\',\''+v+'\')">'+v+'</button>').join('')+'</div></td><td><button class="delbtn" onclick="delDom(\''+skrJ+'\')">✕</button></td></tr>';
     });
     html+='<tr><td colspan="7" class="shdr ind">🔎 Gatunki wskaźnikowe / charakterystyczne — '+p.simpl.ind.length+'/15</td></tr>';
     if(p.simpl.ind.length===0)html+='<tr><td colspan="7" class="tn" style="padding:8px 10px;text-align:left">— brak — wybierz „Wskaźnikowe” i dodaj gatunki</td></tr>';
@@ -1226,7 +1252,7 @@ function renderPointsList(){
     const tlbl=p.type==='releve'?'ZDJĘCIE':p.type==='flora'?'LISTA':'UPROSZCZ.';
     const np=(p.photos||[]).filter(Boolean).length;
     const pf=np?' · 📷 '+np:'';
-    return '<div class="pcard" onclick="openPoint(\''+p.id+'\')"><div class="pcard-h"><span class="pcard-nr">'+p.nr+'. '+(p.note?esc(p.note):'<span style=\'color:var(--ink3)\'>bez opisu</span>')+'</span><span class="pcard-type '+p.type+'">'+tlbl+'</span></div><div class="pcard-meta">'+p.lat.toFixed(5)+', '+p.lon.toFixed(5)+' · '+n+' gat.'+pf+' · '+(p.date||'')+'</div></div>';
+    return '<div class="pcard" onclick="openPoint(\''+p.id+'\')"><div class="pcard-h"><span class="pcard-nr">'+p.nr+'. '+(p.note?esc(p.note):'<span style=\'color:var(--ink3)\'>bez opisu</span>')+'</span><span class="pcard-type '+p.type+'">'+tlbl+'</span></div><div class="pcard-meta">'+(p.rss?esc(p.rss)+' · ':'')+p.lat.toFixed(5)+', '+p.lon.toFixed(5)+' · '+n+' gat.'+pf+' · '+(p.date||'')+'</div></div>';
   }).join('');
 }
 function openPoint(id){setActive(id);loadSurvey();goTab('survey');map&&map.setView([activePoint().lat,activePoint().lon]);}
@@ -1270,10 +1296,11 @@ function importGPX(input){
   };rd.readAsText(f);input.value='';
 }
 function pointHeaderLines(p){
-  return ['# Punkt;'+p.nr,'# Stanowisko;'+(p.note||''),'# Wsp.;'+p.lat+', '+p.lon,'# Autor;'+(p.aut||''),'# Data;'+(p.date||''),
+  return ['# Punkt;'+p.nr,'# Stanowisko;'+(p.note||''),'# Dzialka RSS;'+(p.rss||''),'# Wsp.;'+p.lat+', '+p.lon,'# Autor;'+(p.aut||''),'# Data;'+(p.date||''),
     '# Pow. (m2);'+(p.hdr.pow||''),'# Ekspozycja;'+(p.hdr.exp||''),'# Nachylenie (st.);'+(p.hdr.nach||''),
     '# Podloze;'+(p.hdr.podloze||''),'# Uwilgotnienie;'+(p.hdr.uwilg||''),
     '# Zwarcie A/B/C/D (%);'+[p.hdr.za,p.hdr.zb,p.hdr.zc,p.hdr.zd].join('/'),'# Wysokosc A/B (m);'+[p.hdr.ha,p.hdr.hb].join('/'),
+    '# Pokrycie otw. woda (%);'+(p.hdr.woda||''),'# Pokrycie sciolka/wojlok (%);'+(p.hdr.sciol||''),
     '# Uwagi;'+(p.hdr.uw||'')];
 }
 function exportReleveCSV(){
@@ -1337,8 +1364,8 @@ function exportSimplCSV(){
   sp.forEach(p=>{
     out+=['# Punkt;'+p.nr,'# Stanowisko;'+(p.note||''),'# Wsp.;'+p.lat+', '+p.lon,'# Autor;'+(p.aut||''),'# Data;'+(p.date||''),
       '# Podloze;'+(p.hdr.podloze||''),'# Uwilgotnienie;'+(p.hdr.uwilg||''),'# Ekspozycja;'+(p.hdr.exp||''),'# Nachylenie;'+(p.hdr.nach||'')].join('\n')+'\n';
-    out+='Rola;L.p.;Akronim;Nazwa lacinska;Nazwa polska;Udzial %;Ochrona\n';
-    p.simpl.dom.forEach((s,i)=>{out+=['panujacy',i+1,s.skr,s.lac,s.pl,s.pct,s.prot||''].join(';')+'\n';});
+    out+='Rola;L.p.;Akronim;Nazwa lacinska;Nazwa polska;Ilosciowosc;Ochrona\n';
+    p.simpl.dom.forEach((s,i)=>{out+=['panujacy',i+1,s.skr,s.lac,s.pl,s.il||'',s.prot||''].join(';')+'\n';});
     p.simpl.ind.forEach((s,i)=>{out+=['wskaznikowy',i+1,s.skr,s.lac,s.pl,'',s.prot||''].join(';')+'\n';});
     out+='\n';
   });
@@ -1358,14 +1385,15 @@ async function exportZip(){
       let gat,ng;
       if(p.type==='releve'){gat=p.releve.map(s=>({akronim:s.skr,lac:s.lac,pl:s.pl,warstwa:s.layer,bb:s.bb,ochrona:s.prot||''}));ng=p.releve.length;}
       else if(p.type==='flora'){gat=p.flora.map(s=>({akronim:s.skr,lac:s.lac,pl:s.pl,czestosc:s.freq,ochrona:s.prot||''}));ng=p.flora.length;}
-      else{gat=p.simpl.dom.map(s=>({akronim:s.skr,lac:s.lac,pl:s.pl,rola:'panujacy',udzial_pct:s.pct,ochrona:s.prot||''})).concat(p.simpl.ind.map(s=>({akronim:s.skr,lac:s.lac,pl:s.pl,rola:'wskaznikowy',ochrona:s.prot||''})));ng=p.simpl.dom.length+p.simpl.ind.length;}
+      else{gat=p.simpl.dom.map(s=>({akronim:s.skr,lac:s.lac,pl:s.pl,rola:'panujacy',ilosciowosc:s.il||'',ochrona:s.prot||''})).concat(p.simpl.ind.map(s=>({akronim:s.skr,lac:s.lac,pl:s.pl,rola:'wskaznikowy',ochrona:s.prot||''})));ng=p.simpl.dom.length+p.simpl.ind.length;}
       const pm=Array.isArray(p.photoMeta)?p.photoMeta:[null,null];
       const fdat=s=>{const m=pm[s];return m&&m.date?m.date:'';};
       return {type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},properties:{
-        point_id:p.id,nr:p.nr,stanowisko:p.note||'',typ:p.type,autor:p.aut||'',data:p.date||'',
+        point_id:p.id,nr:p.nr,stanowisko:p.note||'',typ:p.type,rss:p.rss||'',autor:p.aut||'',data:p.date||'',
         pow_m2:p.hdr.pow||'',ekspozycja:p.hdr.exp||'',nachylenie:p.hdr.nach||'',
         podloze:p.hdr.podloze||'',uwilgotnienie:p.hdr.uwilg||'',
         zwarcie_A:p.hdr.za||'',zwarcie_B:p.hdr.zb||'',zwarcie_C:p.hdr.zc||'',zwarcie_D:p.hdr.zd||'',
+        pokr_woda:p.hdr.woda||'',pokr_sciol:p.hdr.sciol||'',
         wys_A:p.hdr.ha||'',wys_B:p.hdr.hb||'',uwagi:p.hdr.uw||'',
         n_gat:ng,foto1:fn[0],foto1_data:fdat(0),foto2:fn[1],foto2_data:fdat(1),gatunki:gat
       }};
@@ -1376,7 +1404,7 @@ async function exportZip(){
       const row=(warstwa,rola,s,skala,wartosc)=>[p.id,p.nr,csvq(p.note),p.type,warstwa,rola,s.skr,s.lac,s.pl,skala,wartosc,s.prot||''].join(';')+'\n';
       if(p.type==='releve')p.releve.forEach(s=>{csv+=row(s.layer,'',s,'BB',s.bb);});
       else if(p.type==='flora')p.flora.forEach(s=>{csv+=row('','',s,'czestosc',s.freq);});
-      else{p.simpl.dom.forEach(s=>{csv+=row('','panujacy',s,'procent',s.pct);});p.simpl.ind.forEach(s=>{csv+=row('','wskaznikowy',s,'','');});}
+      else{p.simpl.dom.forEach(s=>{csv+=row('','panujacy',s,'ilosciowosc',s.il||'');});p.simpl.ind.forEach(s=>{csv+=row('','wskaznikowy',s,'','');});}
     });
     zip.file('gatunki.csv',csv);
     const fdir=zip.folder('foto');let nf=0;
