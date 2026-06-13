@@ -216,6 +216,8 @@ label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:p
 .center-add .cc{background:rgba(42,42,42,.82);color:#fff;font-size:.58rem;padding:3px 9px;border-radius:20px}
 .center-add .cbtn{background:var(--G);color:#fff;border:none;border-radius:11px;padding:11px 18px;font-family:'DM Mono',monospace;font-weight:700;font-size:.76rem;box-shadow:var(--shadow);cursor:pointer}
 .center-add .cbtn:active{transform:scale(.96)}
+.center-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.center-add .cbtn-gps{background:var(--Bl)}
 /* PHOTOS */
 .photorow{display:flex;gap:8px;margin-top:9px}
 .photoslot{flex:1;height:84px;border:2px dashed var(--bd);border-radius:10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;color:var(--ink3);font-size:.62rem;cursor:pointer;background:var(--bg);position:relative;overflow:hidden}
@@ -257,7 +259,10 @@ label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:p
   </div>
   <div class="center-add" id="center-add">
     <span class="cc" id="center-coords">—</span>
-    <button class="cbtn" onclick="addPointAtCenter()">📍 Dodaj punkt tutaj</button>
+    <div class="center-btns">
+      <button class="cbtn" onclick="addPointAtCenter()">📍 Dodaj tutaj (celownik)</button>
+      <button class="cbtn cbtn-gps" onclick="addPointHere()">🎯 Z pozycji GPS</button>
+    </div>
   </div>
   <div class="map-top">
     <label class="mbtn">📂 Działki KML<input type="file" id="parcelInput" accept=".kml,.geojson,.json" style="display:none" onchange="loadParcels(this)"></label>
@@ -549,7 +554,7 @@ let parcels=null; // {fmt, text}
 let activeId=null;
 let defaultAuthor='Andrzej Rodziewicz';
 
-function normalizePoints(){points.forEach(p=>{if(!Array.isArray(p.photos))p.photos=[null,null];if(!Array.isArray(p.thumbs))p.thumbs=[null,null];while(p.photos.length<2)p.photos.push(null);while(p.thumbs.length<2)p.thumbs.push(null);if(!p.hdr)p.hdr={};['pow','exp','nach','podloze','uwilg','za','zb','zc','zd','ha','hb','uw'].forEach(k=>{if(p.hdr[k]===undefined)p.hdr[k]='';});if(!Array.isArray(p.releve))p.releve=[];if(!Array.isArray(p.flora))p.flora=[];if(!p.simpl||!Array.isArray(p.simpl.dom)||!Array.isArray(p.simpl.ind))p.simpl={dom:(p.simpl&&Array.isArray(p.simpl.dom))?p.simpl.dom:[],ind:(p.simpl&&Array.isArray(p.simpl.ind))?p.simpl.ind:[]};});}
+function normalizePoints(){points.forEach(p=>{if(!Array.isArray(p.photos))p.photos=[null,null];if(!Array.isArray(p.thumbs))p.thumbs=[null,null];while(p.photos.length<2)p.photos.push(null);while(p.thumbs.length<2)p.thumbs.push(null);if(!Array.isArray(p.photoMeta))p.photoMeta=[null,null];while(p.photoMeta.length<2)p.photoMeta.push(null);if(!p.hdr)p.hdr={};['pow','exp','nach','podloze','uwilg','za','zb','zc','zd','ha','hb','uw'].forEach(k=>{if(p.hdr[k]===undefined)p.hdr[k]='';});if(!Array.isArray(p.releve))p.releve=[];if(!Array.isArray(p.flora))p.flora=[];if(!p.simpl||!Array.isArray(p.simpl.dom)||!Array.isArray(p.simpl.ind))p.simpl={dom:(p.simpl&&Array.isArray(p.simpl.dom))?p.simpl.dom:[],ind:(p.simpl&&Array.isArray(p.simpl.ind))?p.simpl.ind:[]};});}
 function loadState(){
   try{points=JSON.parse(localStorage.getItem('ft_points')||'[]');}catch(e){points=[];}
   try{track=JSON.parse(localStorage.getItem('ft_track')||'null')||{name:'Trasa terenowa',points:[]};}catch(e){track={name:'Trasa terenowa',points:[]};}
@@ -575,29 +580,82 @@ async function idbDel(k){const db=await idb();return new Promise(res=>{const t=d
 async function idbClear(){const db=await idb();return new Promise(res=>{const t=db.transaction('photos','readwrite');t.objectStore('photos').clear();t.oncomplete=()=>res();t.onerror=()=>res();});}
 
 const PHOTO_MAX=2400,PHOTO_Q=0.82,THUMB_MAX=220;
-function photoClick(slot){const p=activePoint();if(!p)return;if(p.photos&&p.photos[slot])viewPhoto(slot);else document.getElementById('cam-'+slot).click();}
+/* --- orientacja urządzenia (azymut/nachylenie) --- */
+let lastHeading=null,lastTilt=null,orientOn=false;
+function onOrient(e){
+  let h=null;
+  if(e.webkitCompassHeading!=null&&!isNaN(e.webkitCompassHeading))h=e.webkitCompassHeading;
+  else if(e.alpha!=null){h=(360-e.alpha)%360;}
+  if(h!=null)lastHeading=h;
+  if(e.beta!=null)lastTilt=e.beta;
+}
+function startOrient(){
+  if(orientOn)return;
+  const add=()=>{orientOn=true;window.addEventListener('deviceorientationabsolute',onOrient,true);window.addEventListener('deviceorientation',onOrient,true);};
+  try{
+    if(typeof DeviceOrientationEvent!=='undefined'&&typeof DeviceOrientationEvent.requestPermission==='function'){
+      DeviceOrientationEvent.requestPermission().then(s=>{if(s==='granted')add();}).catch(()=>{});
+    } else add();
+  }catch(e){}
+}
+let pendingMeta={};
+function photoClick(slot){
+  const p=activePoint();if(!p)return;
+  if(p.photos&&p.photos[slot]){viewPhoto(slot);return;}
+  startOrient();
+  pendingMeta[slot]={lat:p.lat,lon:p.lon,alt:null,acc:null,altAcc:null,azim:lastHeading,tilt:lastTilt,time:Date.now()};
+  if(navigator.geolocation){navigator.geolocation.getCurrentPosition(pos=>{const c=pos.coords;if(pendingMeta[slot]){pendingMeta[slot].lat=c.latitude;pendingMeta[slot].lon=c.longitude;pendingMeta[slot].alt=c.altitude;pendingMeta[slot].acc=c.accuracy;pendingMeta[slot].altAcc=c.altitudeAccuracy;pendingMeta[slot].azim=(lastHeading!=null?lastHeading:pendingMeta[slot].azim);pendingMeta[slot].tilt=(lastTilt!=null?lastTilt:pendingMeta[slot].tilt);}},()=>{},{enableHighAccuracy:true,timeout:8000,maximumAge:3000});}
+  document.getElementById('cam-'+slot).click();
+}
 async function onPhoto(slot,input){
   const f=input.files[0];input.value='';if(!f)return;
   const p=activePoint();if(!p)return;
+  const meta=pendingMeta[slot]||{lat:p.lat,lon:p.lon,alt:null,acc:null,altAcc:null,azim:lastHeading,tilt:lastTilt,time:Date.now()};
+  meta.time=meta.time||Date.now();
   const el=document.getElementById('ps-'+slot);
   const busy=document.createElement('div');busy.className='pbusy';busy.textContent='⏳ przetwarzam…';el.appendChild(busy);
   try{
-    const full=await resizeImage(f,PHOTO_MAX,PHOTO_Q,false);
-    const thumb=await resizeImage(f,THUMB_MAX,0.7,true);
+    const full=await resizeImage(f,PHOTO_MAX,PHOTO_Q,false,meta);
+    const thumb=await resizeImage(f,THUMB_MAX,0.7,true,null);
     const key=p.id+'_'+slot;
     await idbPut(key,{blob:full,ts:Date.now()});
-    p.photos[slot]=key;p.thumbs[slot]=thumb;savePoints();
+    p.photos[slot]=key;p.thumbs[slot]=thumb;
+    if(!Array.isArray(p.photoMeta))p.photoMeta=[null,null];
+    p.photoMeta[slot]={lat:meta.lat,lon:meta.lon,alt:meta.alt,acc:meta.acc,altAcc:meta.altAcc,azim:meta.azim,tilt:meta.tilt,time:meta.time};
+    savePoints();delete pendingMeta[slot];
     renderPhotos();renderPointsList();updateHdrSummary();
-    showToast('✓ Foto '+(slot+1)+' zapisane ('+Math.round(full.size/1024)+' KB)');
+    const az=meta.azim!=null?(' · azymut '+Math.round(meta.azim)+'°'):'';
+    showToast('✓ Foto '+(slot+1)+' ('+Math.round(full.size/1024)+' KB)'+az);
   }catch(e){showToast('Błąd foto: '+e.message);}
   finally{busy.remove();}
 }
-function resizeImage(file,maxEdge,q,asDataURL){
+function toDMS(dd,isLat){const dir=dd>=0?(isLat?'N':'E'):(isLat?'S':'W');dd=Math.abs(dd);let d=Math.floor(dd),mf=(dd-d)*60,m=Math.floor(mf),s=Math.round((mf-m)*60);if(s>=60){s-=60;m+=1;}if(m>=60){m-=60;d+=1;}return d+'°'+m+"'"+s+'"'+dir;}
+function cardinal(a){return ['N','NE','E','SE','S','SW','W','NW'][Math.round(((a%360)/45))%8];}
+function fmtTime(ms){const d=new Date(ms),z=n=>String(n).padStart(2,'0');return z(d.getDate())+'-'+z(d.getMonth()+1)+'-'+d.getFullYear()+' '+z(d.getHours())+':'+z(d.getMinutes());}
+function drawWatermark(ctx,w,h,meta){
+  const lines=[];
+  if(meta.lat!=null&&meta.lon!=null){lines.push('Szerokość: '+toDMS(meta.lat,true));lines.push('Długość: '+toDMS(meta.lon,false));}
+  if(meta.alt!=null)lines.push('Wysokość: '+meta.alt.toFixed(2)+(meta.altAcc!=null?'±'+Math.round(meta.altAcc):'')+' m');
+  if(meta.acc!=null)lines.push('Dokładność: '+meta.acc.toFixed(1)+' m');
+  if(meta.azim!=null)lines.push('Azymut: '+Math.round(meta.azim)+'° ('+cardinal(meta.azim)+')');
+  if(meta.tilt!=null)lines.push('Nachylenie: '+meta.tilt.toFixed(1)+'°');
+  lines.push('Czas: '+fmtTime(meta.time||Date.now()));
+  const fs=Math.max(13,Math.round(w/58)),pad=Math.round(fs*0.5),lh=Math.round(fs*1.32);
+  ctx.font='600 '+fs+'px DM Mono, monospace';
+  let bw=0;lines.forEach(t=>{bw=Math.max(bw,ctx.measureText(t).width);});
+  const boxW=bw+pad*2,boxH=lines.length*lh+pad*2,x=Math.round(w*0.012),y=h-boxH-Math.round(w*0.012);
+  ctx.fillStyle='rgba(0,0,0,0.42)';ctx.fillRect(x,y,boxW,boxH);
+  ctx.textBaseline='top';ctx.fillStyle='#fff';ctx.shadowColor='rgba(0,0,0,0.8)';ctx.shadowBlur=Math.round(fs*0.25);
+  lines.forEach((t,i)=>{ctx.fillText(t,x+pad,y+pad+i*lh);});
+  ctx.shadowBlur=0;
+}
+function resizeImage(file,maxEdge,q,asDataURL,meta){
   return new Promise((res,rej)=>{
     const done=(src,w,h)=>{
       const s=Math.min(1,maxEdge/Math.max(w,h)),nw=Math.round(w*s),nh=Math.round(h*s);
       const cv=document.createElement('canvas');cv.width=nw;cv.height=nh;
-      cv.getContext('2d').drawImage(src,0,0,nw,nh);
+      const ctx=cv.getContext('2d');ctx.drawImage(src,0,0,nw,nh);
+      if(meta)try{drawWatermark(ctx,nw,nh,meta);}catch(e){}
       if(asDataURL)res(cv.toDataURL('image/jpeg',q));
       else cv.toBlob(b=>b?res(b):rej(new Error('toBlob')),'image/jpeg',q);
     };
@@ -629,7 +687,7 @@ function closeLightbox(){const lb=document.getElementById('lightbox');lb.classLi
 async function delPhoto(slot){
   const p=activePoint();if(!p||!p.photos[slot])return;
   if(!confirm('Usunąć Foto '+(slot+1)+'?'))return;
-  await idbDel(p.photos[slot]);p.photos[slot]=null;p.thumbs[slot]=null;savePoints();renderPhotos();renderPointsList();updateHdrSummary();
+  await idbDel(p.photos[slot]);p.photos[slot]=null;p.thumbs[slot]=null;if(Array.isArray(p.photoMeta))p.photoMeta[slot]=null;savePoints();renderPhotos();renderPointsList();updateHdrSummary();
   showToast('🗑 Foto usunięte');
 }
 
@@ -822,7 +880,7 @@ function createPoint(lat,lon){
   hdr.uw='';
   const p={id:uid(),lat:+lat.toFixed(6),lon:+lon.toFixed(6),nr,note:'',type:'releve',
     aut:defaultAuthor,date:new Date().toISOString().slice(0,10),
-    hdr,releve:[],flora:[],simpl:{dom:[],ind:[]},photos:[null,null],thumbs:[null,null]};
+    hdr,releve:[],flora:[],simpl:{dom:[],ind:[]},photos:[null,null],thumbs:[null,null],photoMeta:[null,null]};
   points.push(p);savePoints();setActive(p.id);
   renderPointMarkers();renderPointsList();updBadges();
   showToast(prev?('✓ Punkt '+nr+' · główkę skopiowano z pkt '+prev.nr):('✓ Punkt '+nr+' dodany'));
@@ -1229,13 +1287,17 @@ async function exportZip(){
       if(p.type==='releve'){gat=p.releve.map(s=>({akronim:s.skr,lac:s.lac,pl:s.pl,warstwa:s.layer,bb:s.bb,ochrona:s.prot||''}));ng=p.releve.length;}
       else if(p.type==='flora'){gat=p.flora.map(s=>({akronim:s.skr,lac:s.lac,pl:s.pl,czestosc:s.freq,ochrona:s.prot||''}));ng=p.flora.length;}
       else{gat=p.simpl.dom.map(s=>({akronim:s.skr,lac:s.lac,pl:s.pl,rola:'panujacy',udzial_pct:s.pct,ochrona:s.prot||''})).concat(p.simpl.ind.map(s=>({akronim:s.skr,lac:s.lac,pl:s.pl,rola:'wskaznikowy',ochrona:s.prot||''})));ng=p.simpl.dom.length+p.simpl.ind.length;}
+      const pm=Array.isArray(p.photoMeta)?p.photoMeta:[null,null];
+      const fmeta=s=>{const m=pm[s];return m?{azim:(m.azim!=null?Math.round(m.azim):''),tilt:(m.tilt!=null?+m.tilt.toFixed(1):''),czas:(m.time?new Date(m.time).toISOString():'')}:{azim:'',tilt:'',czas:''};};
+      const m1=fmeta(0),m2=fmeta(1);
       return {type:'Feature',geometry:{type:'Point',coordinates:[p.lon,p.lat]},properties:{
         point_id:p.id,nr:p.nr,stanowisko:p.note||'',typ:p.type,autor:p.aut||'',data:p.date||'',
         pow_m2:p.hdr.pow||'',ekspozycja:p.hdr.exp||'',nachylenie:p.hdr.nach||'',
         podloze:p.hdr.podloze||'',uwilgotnienie:p.hdr.uwilg||'',
         zwarcie_A:p.hdr.za||'',zwarcie_B:p.hdr.zb||'',zwarcie_C:p.hdr.zc||'',zwarcie_D:p.hdr.zd||'',
         wys_A:p.hdr.ha||'',wys_B:p.hdr.hb||'',uwagi:p.hdr.uw||'',
-        n_gat:ng,foto1:fn[0],foto2:fn[1],gatunki:gat
+        n_gat:ng,foto1:fn[0],foto1_azymut:m1.azim,foto1_nachyl:m1.tilt,foto1_czas:m1.czas,
+        foto2:fn[1],foto2_azymut:m2.azim,foto2_nachyl:m2.tilt,foto2_czas:m2.czas,gatunki:gat
       }};
     });
     zip.file('punkty.geojson',JSON.stringify({type:'FeatureCollection',name:'punkty_fitosocjologiczne',crs:{type:'name',properties:{name:'urn:ogc:def:crs:OGC:1.3:CRS84'}},features:feats},null,1));
@@ -1248,10 +1310,18 @@ async function exportZip(){
     });
     zip.file('gatunki.csv',csv);
     const fdir=zip.folder('foto');let nf=0;
-    for(const p of points){for(let s=0;s<2;s++){if(p.photos&&p.photos[s]){try{const rec=await idbGet(p.photos[s]);if(rec&&rec.blob){fdir.file('pt'+pad(p.nr)+'_'+(s+1)+'.jpg',rec.blob);nf++;}}catch(e){}}}}
+    let fcsv='\ufeffpoint_id;nr;plik;lat;lon;wys_m;dokl_m;azymut_st;kierunek;nachylenie_st;czas\n';
+    let hasF=false;
+    for(const p of points){for(let s=0;s<2;s++){if(p.photos&&p.photos[s]){
+      const plik='pt'+pad(p.nr)+'_'+(s+1)+'.jpg';
+      try{const rec=await idbGet(p.photos[s]);if(rec&&rec.blob){fdir.file(plik,rec.blob);nf++;}}catch(e){}
+      const m=(Array.isArray(p.photoMeta)?p.photoMeta[s]:null)||{};hasF=true;
+      fcsv+=[p.id,p.nr,plik,(m.lat!=null?m.lat:p.lat),(m.lon!=null?m.lon:p.lon),(m.alt!=null?m.alt.toFixed(2):''),(m.acc!=null?m.acc.toFixed(1):''),(m.azim!=null?Math.round(m.azim):''),(m.azim!=null?cardinal(m.azim):''),(m.tilt!=null?m.tilt.toFixed(1):''),(m.time?new Date(m.time).toISOString():'')].join(';')+'\n';
+    }}}
+    if(hasF)zip.file('fotografie.csv',fcsv);
     if(track.points.length)zip.file('slad.gpx',buildGPX());
     zip.file('projekt.json',JSON.stringify({app:'FitoTerrain',ver:1,saved:new Date().toISOString(),points,track,parcels,author:defaultAuthor}));
-    zip.file('README.txt','FitoTerrain — paczka terenowa\nData: '+new Date().toISOString()+'\nPunktow: '+points.length+', fotografii: '+nf+'\n\npunkty.geojson — punkty (CRS84/WGS84); properties: naglowek zdjecia + zagniezdzona lista gatunkow.\ngatunki.csv — tabela dluga; zlaczenie z punktami po polu point_id (Join/Relacje w QGIS).\nfoto/ — fotografie ptNN_1.jpg / ptNN_2.jpg (NN = nr punktu).\nslad.gpx — slad terenowy + punkty jako waypointy.\nprojekt.json — kopia do ponownego wczytania w aplikacji FitoTerrain.\n');
+    zip.file('README.txt','FitoTerrain — paczka terenowa\nData: '+new Date().toISOString()+'\nPunktow: '+points.length+', fotografii: '+nf+'\n\npunkty.geojson — punkty (CRS84/WGS84); properties: naglowek zdjecia + zagniezdzona lista gatunkow.\ngatunki.csv — tabela dluga; zlaczenie z punktami po polu point_id (Join/Relacje w QGIS).\nfotografie.csv — metadane fotografii (pozycja, azymut, nachylenie, czas); zlaczenie po point_id / plik.\nfoto/ — fotografie ptNN_1.jpg / ptNN_2.jpg (NN = nr punktu), z naniesionym znakiem wodnym.\nslad.gpx — slad terenowy + punkty jako waypointy.\nprojekt.json — kopia do ponownego wczytania w aplikacji FitoTerrain.\n');
     const blob=await zip.generateAsync({type:'blob',compression:'DEFLATE',compressionOptions:{level:6}});
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='fitoterrain_paczka_'+todayStr()+'.zip';a.click();
     showToast('📦 Paczka gotowa: '+points.length+' pkt, '+nf+' foto ('+Math.round(blob.size/1024)+' KB)');
