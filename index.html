@@ -119,6 +119,16 @@ select.grow{flex:1;min-width:0}
 .smbtn{border:1px solid var(--bd);background:var(--bg);border-radius:7px;padding:4px 8px;font-family:'DM Mono',monospace;font-size:.58rem;color:var(--ink3);cursor:pointer}
 .smbtn.on{background:var(--G);color:#fff;border-color:var(--G2);font-weight:700}
 .rlist{overflow-y:auto;max-height:38vh;background:var(--bg)}
+.quickbar{display:flex;gap:6px;padding:7px 10px;background:#fff;border-bottom:1px solid var(--bd);overflow-x:auto;-webkit-overflow-scrolling:touch;align-items:center}
+.quickbar.hidden{display:none}
+.quickbar .qlabel{flex:0 0 auto;font-size:.54rem;color:var(--ink3);font-weight:700}
+.qchip{flex:0 0 auto;display:flex;align-items:center;gap:5px;background:var(--Gbg);border:1px solid var(--bd);border-radius:16px;padding:5px 9px;font-family:'DM Mono',monospace;font-size:.64rem;color:var(--ink);cursor:pointer;white-space:nowrap}
+.qchip:active{transform:scale(.95)}
+.qchip .qdot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.qchip .qdot.v{background:var(--G2)}.qchip .qdot.b{background:#16a085}.qchip .qdot.l{background:#8e44ad}
+.qchip .qstar{font-size:.72rem;color:var(--ink3);padding:0 1px}
+.qchip.pinned{background:#fff;border-color:var(--G2)}
+.qchip.pinned .qstar{color:var(--O)}
 .ri{display:flex;align-items:center;gap:8px;padding:9px 12px;border-bottom:1px solid var(--bd);background:#fff;cursor:pointer}
 .ri:active{background:var(--Gbg)}
 .rgrp{font-size:.52rem;font-weight:700;border-radius:5px;padding:2px 4px;color:#fff;flex-shrink:0;width:30px;text-align:center}
@@ -394,6 +404,7 @@ label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:p
         <button class="smbtn" id="sm-l" onclick="setSFilter('l')">Porosty</button>
       </div>
     </div>
+    <div class="quickbar hidden" id="quickbar"></div>
     <div class="rlist" id="rlist"></div>
 
     <div class="twrap">
@@ -553,6 +564,7 @@ let track={name:'Trasa terenowa',points:[]};
 let parcels=null; // {fmt, text}
 let activeId=null;
 let defaultAuthor='Andrzej Rodziewicz';
+let recent=[],pinned=[];
 
 function normalizePoints(){points.forEach(p=>{if(!Array.isArray(p.photos))p.photos=[null,null];if(!Array.isArray(p.thumbs))p.thumbs=[null,null];while(p.photos.length<2)p.photos.push(null);while(p.thumbs.length<2)p.thumbs.push(null);if(!Array.isArray(p.photoMeta))p.photoMeta=[null,null];while(p.photoMeta.length<2)p.photoMeta.push(null);if(!p.hdr)p.hdr={};['pow','exp','nach','podloze','uwilg','za','zb','zc','zd','ha','hb','uw'].forEach(k=>{if(p.hdr[k]===undefined)p.hdr[k]='';});if(!Array.isArray(p.releve))p.releve=[];if(!Array.isArray(p.flora))p.flora=[];if(!p.simpl||!Array.isArray(p.simpl.dom)||!Array.isArray(p.simpl.ind))p.simpl={dom:(p.simpl&&Array.isArray(p.simpl.dom))?p.simpl.dom:[],ind:(p.simpl&&Array.isArray(p.simpl.ind))?p.simpl.ind:[]};});}
 function loadState(){
@@ -561,6 +573,8 @@ function loadState(){
   try{parcels=JSON.parse(localStorage.getItem('ft_parcels')||'null');}catch(e){parcels=null;}
   activeId=localStorage.getItem('ft_active')||null;
   defaultAuthor=localStorage.getItem('ft_author')||'Andrzej Rodziewicz';
+  try{recent=JSON.parse(localStorage.getItem('ft_recent')||'[]');}catch(e){recent=[];}
+  try{pinned=JSON.parse(localStorage.getItem('ft_pinned')||'[]');}catch(e){pinned=[];}
   normalizePoints();
 }
 function savePoints(){try{localStorage.setItem('ft_points',JSON.stringify(points));}catch(e){showToast('Błąd zapisu: '+e.message);}}
@@ -581,11 +595,14 @@ async function idbClear(){const db=await idb();return new Promise(res=>{const t=
 
 const PHOTO_MAX=2400,PHOTO_Q=0.82,THUMB_MAX=220;
 /* --- orientacja urządzenia (azymut/nachylenie) --- */
-let lastHeading=null,lastTilt=null,orientOn=false;
+let lastHeading=null,lastTilt=null,orientOn=false,haveAbsolute=false;
 function onOrient(e){
+  const absolute=(e.absolute===true)||(e.type==='deviceorientationabsolute');
+  if(absolute)haveAbsolute=true;
+  if(!absolute&&haveAbsolute)return;
   let h=null;
   if(e.webkitCompassHeading!=null&&!isNaN(e.webkitCompassHeading))h=e.webkitCompassHeading;
-  else if(e.alpha!=null){h=(360-e.alpha)%360;}
+  else if(e.alpha!=null)h=(360-e.alpha)%360;
   if(h!=null)lastHeading=h;
   if(e.beta!=null)lastTilt=e.beta;
 }
@@ -602,10 +619,9 @@ let pendingMeta={};
 function photoClick(slot){
   const p=activePoint();if(!p)return;
   if(p.photos&&p.photos[slot]){viewPhoto(slot);return;}
-  startOrient();
   pendingMeta[slot]={lat:p.lat,lon:p.lon,alt:null,acc:null,altAcc:null,azim:lastHeading,tilt:lastTilt,time:Date.now()};
-  if(navigator.geolocation){navigator.geolocation.getCurrentPosition(pos=>{const c=pos.coords;if(pendingMeta[slot]){pendingMeta[slot].lat=c.latitude;pendingMeta[slot].lon=c.longitude;pendingMeta[slot].alt=c.altitude;pendingMeta[slot].acc=c.accuracy;pendingMeta[slot].altAcc=c.altitudeAccuracy;pendingMeta[slot].azim=(lastHeading!=null?lastHeading:pendingMeta[slot].azim);pendingMeta[slot].tilt=(lastTilt!=null?lastTilt:pendingMeta[slot].tilt);}},()=>{},{enableHighAccuracy:true,timeout:8000,maximumAge:3000});}
   document.getElementById('cam-'+slot).click();
+  if(navigator.geolocation){navigator.geolocation.getCurrentPosition(pos=>{const c=pos.coords;if(pendingMeta[slot]){pendingMeta[slot].lat=c.latitude;pendingMeta[slot].lon=c.longitude;pendingMeta[slot].alt=c.altitude;pendingMeta[slot].acc=c.accuracy;pendingMeta[slot].altAcc=c.altitudeAccuracy;if(lastHeading!=null)pendingMeta[slot].azim=lastHeading;if(lastTilt!=null)pendingMeta[slot].tilt=lastTilt;}},()=>{},{enableHighAccuracy:true,timeout:8000,maximumAge:3000});}
 }
 async function onPhoto(slot,input){
   const f=input.files[0];input.value='';if(!f)return;
@@ -933,6 +949,7 @@ function loadSurvey(){
   renderPhotos();
   document.getElementById('si').value='';doSrch();
   renderTable();
+  renderQuickbar();
 }
 let subSel='dom';
 function setType(t){const p=activePoint();if(!p)return;p.type=t;savePoints();setTypeUI(t);renderPointMarkers();renderPointsList();renderTable();doSrch();updBadges();updateHdrSummary();}
@@ -1001,6 +1018,29 @@ function doSrch(){
 }
 function clearSrch(){document.getElementById('si').value='';doSrch();document.getElementById('si').focus();}
 
+/* SZYBKI WYBÓR — częste / ostatnie / przypięte gatunki */
+function noteRecent(skr){recent=recent.filter(s=>s!==skr);recent.unshift(skr);if(recent.length>30)recent=recent.slice(0,30);try{localStorage.setItem('ft_recent',JSON.stringify(recent));}catch(e){}renderQuickbar();}
+function togglePin(skr){if(pinned.includes(skr))pinned=pinned.filter(s=>s!==skr);else pinned.unshift(skr);try{localStorage.setItem('ft_pinned',JSON.stringify(pinned));}catch(e){}renderQuickbar();}
+function addQuick(skr){const p=activePoint();if(!p)return;if(p.type==='releve')askLayer(skr);else if(p.type==='flora')addFlora(skr);else (subSel==='dom'?addDom:addInd)(skr);}
+function abbrLat(lac){const parts=(lac||'').split(' ');return parts.length>=2?(parts[0][0]+'. '+parts.slice(1).join(' ')):lac;}
+function renderQuickbar(){
+  const bar=document.getElementById('quickbar');if(!bar)return;
+  const p=activePoint();
+  if(!p){bar.classList.add('hidden');return;}
+  const order=pinned.concat(recent.filter(s=>!pinned.includes(s))).slice(0,24);
+  const items=order.map(skr=>({skr,sp:DB.find(s=>s.skr===skr)})).filter(x=>x.sp);
+  if(items.length===0){bar.classList.add('hidden');bar.innerHTML='';return;}
+  bar.classList.remove('hidden');
+  let html='<span class="qlabel">SZYBKI WYBÓR</span>';
+  html+=items.map(({skr,sp})=>{
+    const gc=isB(sp)?'b':isL(sp)?'l':'v';
+    const skrJ=skr.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const isPin=pinned.includes(skr);
+    return '<div class="qchip'+(isPin?' pinned':'')+'" title="'+esc(sp.lac)+' — '+esc(sp.pl)+'" onclick="addQuick(\''+skrJ+'\')"><span class="qdot '+gc+'"></span>'+esc(abbrLat(sp.lac))+'<span class="qstar" onclick="event.stopPropagation();togglePin(\''+skrJ+'\')">'+(isPin?'★':'☆')+'</span></div>';
+  }).join('');
+  bar.innerHTML=html;
+}
+
 /* MIKROFON */
 let recog=null,isRecording=false;
 function toggleMic(){
@@ -1033,7 +1073,7 @@ function confirmLayer(layer){
   const sp=DB.find(s=>s.skr===skr);if(!sp)return;
   const u=skr+'_'+layer;
   if(p.releve.find(c=>c.uid===u)){showToast(sp.lac+' ('+layer+') już w zdjęciu');return;}
-  p.releve.push({uid:u,skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v',layer,bb:''});
+  p.releve.push({uid:u,skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v',layer,bb:''});noteRecent(sp.skr);
   savePoints();renderTable();updBadges();
   document.getElementById('si').value='';doSrch();document.getElementById('si').focus();
   showToast('✓ '+sp.lac+' ['+layer+']');
@@ -1043,7 +1083,7 @@ function addFlora(skr){
   const p=activePoint();if(!p)return;
   if(p.flora.find(c=>c.skr===skr)){showToast('Gatunek już na liście');return;}
   const sp=DB.find(s=>s.skr===skr);if(!sp)return;
-  p.flora.push({skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v',freq:''});
+  p.flora.push({skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v',freq:''});noteRecent(sp.skr);
   savePoints();renderTable();updBadges();
   document.getElementById('si').value='';doSrch();document.getElementById('si').focus();
   showToast('✓ '+sp.lac);
@@ -1057,10 +1097,9 @@ function setFreq(skr,v){const p=activePoint();if(!p)return;const c=p.flora.find(
 function addDom(skr){
   const p=activePoint();if(!p)return;
   if(p.simpl.dom.some(c=>c.skr===skr)){showToast('Już wśród panujących');return;}
-  if(p.simpl.ind.some(c=>c.skr===skr)){showToast('Gatunek jest wśród wskaźnikowych');return;}
   if(p.simpl.dom.length>=5){showToast('Limit: 5 gatunków panujących');return;}
   const sp=DB.find(s=>s.skr===skr);if(!sp)return;
-  p.simpl.dom.push({skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v',pct:''});
+  p.simpl.dom.push({skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v',pct:''});noteRecent(sp.skr);
   savePoints();renderTable();updBadges();updSubCounts();
   document.getElementById('si').value='';doSrch();document.getElementById('si').focus();
   showToast('✓ panujący: '+sp.lac);
@@ -1068,10 +1107,9 @@ function addDom(skr){
 function addInd(skr){
   const p=activePoint();if(!p)return;
   if(p.simpl.ind.some(c=>c.skr===skr)){showToast('Już wśród wskaźnikowych');return;}
-  if(p.simpl.dom.some(c=>c.skr===skr)){showToast('Gatunek jest wśród panujących');return;}
   if(p.simpl.ind.length>=15){showToast('Limit: 15 gatunków wskaźnikowych');return;}
   const sp=DB.find(s=>s.skr===skr);if(!sp)return;
-  p.simpl.ind.push({skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v'});
+  p.simpl.ind.push({skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v'});noteRecent(sp.skr);
   savePoints();renderTable();updBadges();updSubCounts();
   document.getElementById('si').value='';doSrch();document.getElementById('si').focus();
   showToast('✓ wskaźnikowy: '+sp.lac);
@@ -1414,6 +1452,12 @@ window.addEventListener('load',()=>{
   initMap();
   setMapMode('nav');
   updateDBStats();renderPointsList();updBadges();loadSurvey();
+  const fg=(ev)=>{
+    const t=ev&&ev.target;
+    if(t&&((t.closest&&t.closest('.photoslot'))||(t.id&&/^cam-/.test(t.id))||(t.tagName==='INPUT'&&t.type==='file'))){document.addEventListener(ev.type,fg,{once:true,capture:true});return;}
+    startOrient();
+  };
+  ['touchend','pointerup'].forEach(ev=>document.addEventListener(ev,fg,{once:true,capture:true}));
 });
 </script>
 </body>
