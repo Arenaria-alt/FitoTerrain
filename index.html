@@ -259,7 +259,7 @@ label.btn{display:inline-flex;align-items:center;justify-content:center;cursor:p
 .pt-marker.flora{background:var(--Bl)}
 /* ===== OKNO SPISU GATUNKÓW (pełny ekran, zdjęcie fitosoc.) ===== */
 body.sm-open{overflow:hidden}
-#species-modal{position:fixed;inset:0;z-index:4000;background:var(--bg);display:flex;flex-direction:column}
+#species-modal{position:fixed;top:0;left:0;width:100%;height:100%;z-index:4000;background:var(--bg);display:flex;flex-direction:column}
 #species-modal.hidden{display:none}
 #species-modal *{box-sizing:border-box}
 .sm-ctx{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:10px 12px;background:var(--G3);color:#fff;font-size:.85rem;font-weight:600}
@@ -1712,8 +1712,8 @@ function closeSpeciesModal(){
 /* dolny dok nad klawiaturą — bez ruszania globalnego viewportu */
 function smViewport(on){
   const m=document.getElementById('species-modal'); if(!m||!window.visualViewport)return;
-  if(on){const f=()=>{m.style.height=window.visualViewport.height+'px';};f();window.visualViewport.addEventListener('resize',f);m._vvf=f;}
-  else{m.style.height='';if(m._vvf){window.visualViewport.removeEventListener('resize',m._vvf);m._vvf=null;}}
+  if(on){const f=()=>{const vv=window.visualViewport;m.style.height=vv.height+'px';m.style.transform='translateY('+vv.offsetTop+'px)';};f();window.visualViewport.addEventListener('resize',f);window.visualViewport.addEventListener('scroll',f);m._vvf=f;}
+  else{m.style.height='';m.style.transform='';if(m._vvf){window.visualViewport.removeEventListener('resize',m._vvf);window.visualViewport.removeEventListener('scroll',m._vvf);m._vvf=null;}}
 }
 
 function smRender(){smRenderCtx();smRenderList();smRenderDock();}
