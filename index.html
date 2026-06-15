@@ -844,11 +844,21 @@ function readCompass(slot){
     } else start();
   }catch(e){showToast('Kompas niedostępny — wpisz ręcznie');}
 }
+// Numer dokumentacyjny: osobno dla zdjęć fitosocjologicznych (releve) i spisów
+// uproszczonych (simpl), liczony per działka RSS (a nie globalnie jak p.nr).
+// Globalny p.nr zostaje do porządku w terenie. Kolejność w grupie wg p.nr.
+function docNr(p){
+  if(!p)return 1;
+  const same=points.filter(x=>(x.rss||'')===(p.rss||'')&&x.type===p.type);
+  same.sort((a,b)=>(a.nr||0)-(b.nr||0));
+  const i=same.findIndex(x=>x.id===p.id);
+  return i>=0?i+1:(p.nr||1);
+}
 function buildPhotoOpis(p,slot){
   const cap=(Array.isArray(p.photoCap)?p.photoCap[slot]:null);if(!cap||!cap.typ)return '';
   const rss=p.rss||'—';
   if(cap.typ==='widok')return 'Widok na działkę '+rss+' (z pozycji GPS'+(cap.az!=null&&cap.az!==''?', azymut '+cap.az+'°':'')+')';
-  if(cap.typ==='rzut')return 'Rzut poziomy runi na działce '+rss+' — '+(p.type==='releve'?'zdjęcie fitosocjologiczne':'spis uproszczony')+' nr '+p.nr;
+  if(cap.typ==='rzut')return 'Rzut poziomy runi na działce '+rss+' — '+(p.type==='releve'?'zdjęcie fitosocjologiczne':'spis uproszczony')+' nr '+docNr(p);
   if(cap.typ==='gatunek'){if(!cap.spLac)return '';const pl=(cap.spPl||'').replace(/\([^)]*\)/g,'').replace(/\s+/g,' ').trim();return (pl?pl+' ':'')+'('+cap.spLac+') - gatunek wskaźnikowy '+lakSuf(cap.lak||'swieze');}
   return '';
 }
