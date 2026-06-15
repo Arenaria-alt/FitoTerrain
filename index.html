@@ -371,7 +371,6 @@ body.sm-open{overflow:hidden}
   <div class="modechips">
     <button class="mbtn" id="mode-nav" onclick="setMapMode('nav')">✋ Nawigacja</button>
     <button class="mbtn" id="mode-point" onclick="setMapMode('point')">📍 Dodaj punkt</button>
-    <button class="mbtn" id="mode-draw" onclick="setMapMode('draw')">✏️ Rysuj ślad</button>
   </div>
   <button class="locbtn" onclick="locate()" title="Moja pozycja">🎯</button>
 
@@ -617,7 +616,7 @@ body.sm-open{overflow:hidden}
     </div>
     <div class="card">
       <h3>ℹ️ FitoTerrain</h3>
-      <p>Połączenie trzech narzędzi Arenaria: mapa z działkami (KML/GeoJSON), zdjęcia fitosocjologiczne Braun-Blanquet (warstwy A–D), listy florystyczne (częstość +…+++++) oraz rejestracja śladu GPX (na żywo z GPS lub rysowany).<br><br>Skala BB: 5, 4, 3, 2, 1, +, r. Warstwy: A drzewa, B podszyt, C runo, D mszysta.<br><br><strong>Andrzej Rodziewicz</strong> · Arenaria sp. z o.o.</p>
+      <p>Połączenie trzech narzędzi Arenaria: mapa z działkami (KML/GeoJSON), zdjęcia fitosocjologiczne Braun-Blanquet (warstwy A–D), listy florystyczne (częstość +…+++++) oraz rejestracja śladu GPX na żywo z odbiornika GPS.<br><br>Skala BB: 5, 4, 3, 2, 1, +, r. Warstwy: A drzewa, B podszyt, C runo, D mszysta.<br><br><strong>Andrzej Rodziewicz</strong> · Arenaria sp. z o.o.</p>
     </div>
   </div>
 </div>
@@ -947,16 +946,13 @@ async function clearTiles(){
 }
 function setMapMode(m){
   mapMode=m;
-  ['nav','point','draw'].forEach(x=>document.getElementById('mode-'+x).classList.toggle('on',x===m));
-  const c=map.getContainer();
-  c.style.cursor=(m==='draw')?'crosshair':'';
+  ['nav','point'].forEach(x=>document.getElementById('mode-'+x).classList.toggle('on',x===m));
   document.getElementById('crosshair').classList.toggle('show',m==='point');
   document.getElementById('center-add').classList.toggle('show',m==='point');
   if(m==='point')updCenterCoords();
 }
 function updCenterCoords(){const c=map.getCenter();document.getElementById('center-coords').textContent=c.lat.toFixed(5)+', '+c.lng.toFixed(5);}
 function onMapClick(e){
-  if(mapMode==='draw'){ addTrackPt(e.latlng.lat,e.latlng.lng,null,null,true); }
 }
 function addPointAtCenter(){const c=map.getCenter();createPoint(c.lat,c.lng);}
 
