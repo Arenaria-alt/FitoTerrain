@@ -286,21 +286,30 @@ body.sm-open{overflow:hidden}
 .sm-picker{display:flex;gap:6px;flex-wrap:wrap;padding:6px 14px 12px 47px;background:var(--Gbg);border-bottom:1px solid var(--bg3)}
 .sm-picker button{flex:1 1 0;min-width:38px;height:46px;border:1.5px solid var(--bd);border-radius:10px;background:#fff;font:inherit;font-weight:800;font-size:1.05rem;color:var(--ink)}
 .sm-picker button.active{background:var(--G2);border-color:var(--G2);color:#fff}
-.sm-dock{flex:0 0 auto;border-top:1px solid var(--bd);background:var(--bg2);padding:8px 10px calc(8px + env(safe-area-inset-bottom))}
-.sm-hint{font-size:.72rem;color:var(--ink3);text-align:center;margin-bottom:7px}
-.sm-layers{display:flex;gap:7px;margin-bottom:8px}
-.sm-layers button{flex:1;height:44px;border:1.5px solid var(--bd);border-radius:10px;background:#fff;font:inherit;font-weight:800;color:var(--ink2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;line-height:1}
-.sm-layers button small{font-size:.58rem;font-weight:600}
-.sm-layers button.sel.A{background:#3f6d16;border-color:#3f6d16;color:#fff}
-.sm-layers button.sel.B{background:#6aa82a;border-color:#6aa82a;color:#fff}
-.sm-layers button.sel.C{background:#8dc63f;border-color:#8dc63f;color:#22331a}
-.sm-layers button.sel.D{background:#3f8a86;border-color:#3f8a86;color:#fff}
+/* środek: treść + prawa belka warstw */
+.sm-main{flex:1 1 auto;display:flex;min-height:0}
+.sm-content{flex:1 1 auto;display:flex;flex-direction:column;min-width:0;min-height:0}
+/* prawa belka warstw — pełna wysokość, zero kosztu w pionie */
+.sm-rail{flex:0 0 52px;display:flex;flex-direction:column;gap:6px;padding:8px 8px 8px 0;background:var(--bg)}
+.sm-rail.hidden{display:none}
+.sm-rail button{flex:1;min-height:0;border:1.5px solid var(--bd);border-radius:12px;background:#fff;font:inherit;font-weight:800;font-size:1.18rem;color:var(--ink2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;line-height:1}
+.sm-rail button small{font-size:.5rem;font-weight:700;opacity:.85}
+.sm-rail button.sel.A{background:#3f6d16;border-color:#3f6d16;color:#fff}
+.sm-rail button.sel.B{background:#6aa82a;border-color:#6aa82a;color:#fff}
+.sm-rail button.sel.C{background:#8dc63f;border-color:#8dc63f;color:#22331a}
+.sm-rail button.sel.D{background:#3f8a86;border-color:#3f8a86;color:#fff}
+/* dolny dok: pasek trybu + pole szukania / akcje */
+.sm-dock{flex:0 0 auto;border-top:1px solid var(--bd);background:var(--bg2);padding:7px 10px calc(7px + env(safe-area-inset-bottom))}
+.sm-modebar{display:flex;gap:4px;background:var(--bg3);border-radius:10px;padding:3px;margin-bottom:7px}
+.sm-modebar button{flex:1;height:30px;border:0;border-radius:8px;background:transparent;font:inherit;font-weight:700;font-size:.82rem;color:var(--ink2)}
+.sm-modebar button.on{background:#fff;color:var(--G3);box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .sm-searchwrap{position:relative}
-#sm-search{width:100%;height:48px;padding:0 14px 0 40px;border:1.5px solid var(--bd);border-radius:11px;background:#fff;font:inherit;font-size:1rem;color:var(--ink)}
+#sm-search{width:100%;height:46px;padding:0 14px 0 38px;border:1.5px solid var(--bd);border-radius:11px;background:#fff;font:inherit;font-size:1rem;color:var(--ink)}
 #sm-search:focus{outline:none;border-color:var(--G2)}
-.sm-ico{position:absolute;left:13px;top:50%;transform:translateY(-50%);opacity:.5}
-.sm-results{position:absolute;left:0;right:0;bottom:calc(100% + 8px);background:#fff;border:1px solid var(--bd);border-radius:12px;box-shadow:0 -8px 24px rgba(0,0,0,.16);max-height:46vh;overflow-y:auto;display:none}
-.sm-results.open{display:block}
+.sm-ico{position:absolute;left:12px;top:50%;transform:translateY(-50%);opacity:.5;pointer-events:none}
+/* nagłówek trybu wyników wewnątrz obszaru listy */
+.sm-reshead{position:sticky;top:0;z-index:3;display:flex;align-items:center;gap:8px;padding:8px 14px;background:var(--Gbg);border-bottom:1px solid var(--bg3);font-size:.78rem;font-weight:700;color:var(--G3)}
+.sm-reshead .rh-x{margin-left:auto;border:0;background:rgba(0,0,0,.06);color:var(--ink2);font:inherit;font-weight:700;font-size:.74rem;padding:4px 9px;border-radius:7px}
 .sm-res{display:flex;align-items:center;gap:10px;padding:10px 13px;border-bottom:1px solid var(--bg2)}
 .sm-res:last-child{border-bottom:0}
 .sm-res.dim{opacity:.5}
@@ -309,8 +318,19 @@ body.sm-open{overflow:hidden}
 .sm-rn{flex:1;min-width:0}
 .sm-res .sm-lat{font-style:italic}
 .sm-badge{margin-left:auto;font-size:.7rem;font-weight:700;color:var(--ink3);background:var(--bg3);padding:2px 7px;border-radius:20px}
-.sm-nohit{padding:12px 14px;color:var(--ink3);font-size:.86rem}
+.sm-nohit{padding:14px;color:var(--ink3);font-size:.86rem;text-align:center}
 .sm-done{display:block;width:100%;margin-top:8px;height:40px;border:1.5px solid var(--G2);border-radius:10px;background:var(--Gbg);color:var(--G3);font:inherit;font-weight:800}
+/* przycisk gęstości w pasku kontekstu */
+.sm-ctx-btn{flex:0 0 auto;border:0;background:rgba(255,255,255,.16);color:#fff;font:inherit;font-size:.85rem;font-weight:800;width:36px;height:30px;border-radius:8px}
+.sm-ctx-btn.on{background:#fff;color:var(--G3)}
+/* tryb kompaktowy — mniejsze wiersze i czcionki */
+body.sm-compact .sm-row{padding:6px 12px 6px 14px}
+body.sm-compact .sm-lat{font-size:.86rem}
+body.sm-compact .sm-pl{font-size:.7rem}
+body.sm-compact .sm-bb{height:34px;min-width:42px;font-size:.92rem}
+body.sm-compact .sm-grp-h{padding:5px 14px}
+body.sm-compact .sm-res{padding:7px 13px}
+body.sm-compact #sm-search{height:42px}
 .sm-reviewbar{display:flex;gap:8px}
 .sm-reviewbar button{height:48px;border-radius:11px;font:inherit;font-weight:800;border:1.5px solid var(--bd)}
 .sm-add{flex:1;background:#fff;color:var(--G3)}
@@ -1695,6 +1715,7 @@ window.addEventListener('load',()=>{
    reużywa setBB / delRel / noteRecent / savePoints / renderTable / DB.
    =================================================================== */
 let smLayer='C', smMode='add', smPickerUid=null;
+let smCompact=false; try{smCompact=localStorage.getItem('fito_sm_compact')==='1';}catch(e){}
 const SM_LBL={A:'Drzewa',B:'Podszyt / krzewy',C:'Runo / zielne',D:'Mszaki / porosty'};
 const SM_SHORT={A:'drzewa',B:'podszyt',C:'runo',D:'mszaki'};
 const SM_LAYERS=['A','B','C','D'];
@@ -1706,6 +1727,7 @@ function openSpeciesModal(){
   smMode='add'; smPickerUid=null;
   document.getElementById('species-modal').classList.remove('hidden');
   document.body.classList.add('sm-open');
+  document.body.classList.toggle('sm-compact',smCompact);
   smRender(); smViewport(true);
   setTimeout(()=>{const i=document.getElementById('sm-search');if(i)i.focus();},60);
 }
@@ -1722,10 +1744,27 @@ function smViewport(on){
   else{m.style.height='';m.style.transform='';if(m._vvf){window.visualViewport.removeEventListener('resize',m._vvf);window.visualViewport.removeEventListener('scroll',m._vvf);m._vvf=null;}}
 }
 
-function smRender(){smRenderCtx();smRenderList();smRenderDock();}
+function smRender(){smRenderCtx();smRenderDock();smRenderRail();smRenderBody();}
 function smRenderCtx(){
   const p=activePoint(),el=document.getElementById('sm-ctx');if(!el||!p)return;
-  el.innerHTML='<span class="sm-ctx-main">Zdj. nr <b>'+p.nr+'</b>'+(p.rss?' · '+esc(p.rss):'')+(p.note?' · '+esc(p.note):'')+'</span><button class="sm-close" onclick="closeSpeciesModal()">Zamknij ✕</button>';
+  el.innerHTML='<span class="sm-ctx-main">Zdj. nr <b>'+p.nr+'</b>'+(p.rss?' · '+esc(p.rss):'')+(p.note?' · '+esc(p.note):'')+'</span>'
+    +'<button class="sm-ctx-btn'+(smCompact?' on':'')+'" onclick="smToggleDensity()" title="Gęstość widoku / wielkość czcionki">Aa</button>'
+    +'<button class="sm-close" onclick="closeSpeciesModal()">Zamknij ✕</button>';
+}
+function smToggleDensity(){
+  smCompact=!smCompact;
+  document.body.classList.toggle('sm-compact',smCompact);
+  try{localStorage.setItem('fito_sm_compact',smCompact?'1':'0');}catch(e){}
+  smRenderCtx();
+}
+/* jeden przewijalny obszar: lista dodanych ⇄ wyniki wyszukiwania */
+function smRenderBody(){
+  if(smMode==='add'){
+    const inp=document.getElementById('sm-search');
+    const raw=inp?inp.value.trim():'';
+    if(raw.length>=2){smRenderResults(raw);return;}
+  }
+  smRenderList();
 }
 function smRenderList(){
   const p=activePoint(),el=document.getElementById('sm-list');if(!el||!p)return;
@@ -1748,45 +1787,54 @@ function smRenderList(){
   });
   el.innerHTML=html;
 }
-function smRenderDock(){
-  const el=document.getElementById('sm-dock');if(!el)return;
-  if(smMode==='add'){
-    el.innerHTML='<div class="sm-hint">Warstwa „lepka" — gatunki trafiają do wybranej warstwy.</div>'
-      +'<div class="sm-layers">'+SM_LAYERS.map(L=>'<button data-l="'+L+'" class="'+(smLayer===L?'sel '+L:'')+'" onclick="smSetLayer(\''+L+'\')"><span>'+L+'</span><small>'+SM_SHORT[L]+'</small></button>').join('')+'</div>'
-      +'<div class="sm-searchwrap"><div class="sm-results" id="sm-results"></div><span class="sm-ico">🔍</span>'
-      +'<input id="sm-search" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Szukaj gatunku do warstwy '+smLayer+'…" oninput="smSearch()"></div>'
-      +'<button class="sm-done" onclick="smSetMode(\'review\')">Mam już gatunki → ilościowość</button>';
-  }else{
-    el.innerHTML='<div class="sm-hint">Tryb ilościowości — dotknij gatunku, by przypisać skalę B-B.</div>'
-      +'<div class="sm-reviewbar"><button class="sm-add" onclick="smSetMode(\'add\')">＋ Dodaj gatunek</button>'
-      +'<button class="sm-confirm" onclick="smConfirm()">Zatwierdź listę</button></div>';
-  }
-}
-function smSetLayer(l){
-  smLayer=l;
-  document.querySelectorAll('#sm-dock .sm-layers button').forEach(b=>{b.className=(b.dataset.l===l?'sel '+l:'');});
-  const i=document.getElementById('sm-search');if(i){i.placeholder='Szukaj gatunku do warstwy '+l+'…';i.focus();}
-  smSearch();
-}
-function smSetMode(mode){
-  smMode=mode;smPickerUid=null;smRender();
-  if(mode==='add')setTimeout(()=>{const i=document.getElementById('sm-search');if(i)i.focus();},40);
-}
-function smSearch(){
-  const inp=document.getElementById('sm-search'),box=document.getElementById('sm-results');if(!inp||!box)return;
-  const raw=inp.value.trim(),q=raw.toLowerCase();
-  if(q.length<2){box.classList.remove('open');box.innerHTML='';return;}
+function smRenderResults(raw){
+  const el=document.getElementById('sm-list');if(!el)return;
+  const q=raw.toLowerCase();
   const isAcro=/^[A-ZÁÉÍÓÚÀÈÌÒÙÄËÏÖÜ][a-z]/.test(raw)&&raw.length<=8;
-  const res=isAcro?DB.filter(s=>s.skr.toLowerCase().startsWith(q)).slice(0,40):DB.filter(s=>s.lac.toLowerCase().includes(q)||s.pl.toLowerCase().includes(q)||s.skr.toLowerCase().includes(q)).slice(0,40);
+  const res=isAcro?DB.filter(s=>s.skr.toLowerCase().startsWith(q)).slice(0,40)
+    :DB.filter(s=>s.lac.toLowerCase().includes(q)||s.pl.toLowerCase().includes(q)||s.skr.toLowerCase().includes(q)).slice(0,40);
   const p=activePoint();
-  box.innerHTML=res.length?res.map(s=>{
+  let html='<div class="sm-reshead"><span>Wyniki → warstwa '+smLayer+' ('+SM_SHORT[smLayer]+')</span><button class="rh-x" onclick="smClearSearch()">Wyczyść ✕</button></div>';
+  html+=res.length?res.map(s=>{
     const here=p&&p.releve.some(c=>c.skr===s.skr&&c.layer===smLayer);
     const grpLbl=isB(s)?'MSZ':isL(s)?'POR':'NAC',grpCls=isB(s)?'b':isL(s)?'l':'v';
     const skrJ=s.skr.replace(/\\/g,'\\\\').replace(/'/g,"\\'");
     return '<div class="sm-res'+(here?' dim':'')+'" onclick="smAdd(\''+skrJ+'\')"><span class="sm-grp '+grpCls+'">'+grpLbl+'</span><div class="sm-rn"><div class="sm-lat">'+esc(s.lac)+'</div><div class="sm-pl">'+esc(s.pl)+'</div></div>'+(here?'<span class="sm-badge">w '+smLayer+'</span>':'')+'</div>';
   }).join(''):'<div class="sm-nohit">Brak w słowniku „'+esc(raw)+'".</div>';
-  box.classList.add('open');
+  el.innerHTML=html;el.scrollTop=0;
 }
+function smRenderRail(){
+  const el=document.getElementById('sm-rail');if(!el)return;
+  if(smMode!=='add'){el.classList.add('hidden');el.innerHTML='';return;}
+  el.classList.remove('hidden');
+  el.innerHTML=SM_LAYERS.map(L=>'<button data-l="'+L+'" class="'+(smLayer===L?'sel '+L:'')+'" onclick="smSetLayer(\''+L+'\')"><span>'+L+'</span><small>'+SM_SHORT[L]+'</small></button>').join('');
+}
+function smRenderDock(){
+  const el=document.getElementById('sm-dock');if(!el)return;
+  const bar='<div class="sm-modebar">'
+    +'<button class="'+(smMode==='add'?'on':'')+'" onclick="smSetMode(\'add\')">＋ Dodawanie</button>'
+    +'<button class="'+(smMode==='review'?'on':'')+'" onclick="smSetMode(\'review\')">✓ Ilościowość</button></div>';
+  if(smMode==='add'){
+    el.innerHTML=bar
+      +'<div class="sm-searchwrap"><span class="sm-ico">🔍</span>'
+      +'<input id="sm-search" type="text" inputmode="search" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Szukaj gatunku → warstwa '+smLayer+'…" oninput="smSearch()"></div>';
+  }else{
+    el.innerHTML=bar
+      +'<button class="sm-done" onclick="smConfirm()" style="margin-top:0;border-color:var(--G2);background:var(--G2);color:#fff;height:46px">Zatwierdź listę</button>';
+  }
+}
+function smSetLayer(l){
+  smLayer=l;
+  document.querySelectorAll('#sm-rail button').forEach(b=>{b.className=(b.dataset.l===l?'sel '+l:'');});
+  const i=document.getElementById('sm-search');if(i){i.placeholder='Szukaj gatunku → warstwa '+l+'…';i.focus();}
+  smRenderBody();
+}
+function smSetMode(mode){
+  smMode=mode;smPickerUid=null;smRender();
+  if(mode==='add')setTimeout(()=>{const i=document.getElementById('sm-search');if(i)i.focus();},40);
+}
+function smClearSearch(){const i=document.getElementById('sm-search');if(i){i.value='';i.focus();}smRenderBody();}
+function smSearch(){smRenderBody();}
 function smAdd(skr){
   const p=activePoint();if(!p)return;
   const sp=DB.find(s=>s.skr===skr);if(!sp)return;
@@ -1795,7 +1843,7 @@ function smAdd(skr){
   p.releve.push({uid:u,skr:sp.skr,lac:sp.lac,pl:sp.pl,rodz:sp.rodz||'',grra:sp.grra||'',grhg:sp.grhg||'',prot:sp.prot||'',grp:sp.grp||'v',layer:smLayer,bb:''});
   noteRecent(sp.skr);savePoints();renderTable();
   const inp=document.getElementById('sm-search');if(inp){inp.value='';inp.focus();}
-  smSearch();smRenderList();
+  smRenderBody();
   showToast('✓ '+sp.lac+' → '+smLayer);
 }
 function smTogglePicker(uid){smPickerUid=smPickerUid===uid?null:uid;smRenderList();}
@@ -1832,8 +1880,13 @@ function smFinish(){smCloseSheet();closeSpeciesModal();showToast('✓ Lista zatw
 </script>
 <div id="species-modal" class="hidden">
   <div class="sm-ctx" id="sm-ctx"></div>
-  <div class="sm-list" id="sm-list"></div>
-  <div class="sm-dock" id="sm-dock"></div>
+  <div class="sm-main">
+    <div class="sm-content">
+      <div class="sm-list" id="sm-list"></div>
+      <div class="sm-dock" id="sm-dock"></div>
+    </div>
+    <div class="sm-rail hidden" id="sm-rail"></div>
+  </div>
 </div>
 <div class="sm-scrim" id="sm-scrim" onclick="smCloseSheet()"></div>
 <div class="sm-sheet" id="sm-sheet">
