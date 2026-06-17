@@ -602,7 +602,7 @@ body.sm-compact #sm-search{height:42px}
         <label style="font-size:.62rem">Token Mapbox (pk.…)</label>
       </div>
       <input class="fw" id="mb-token" placeholder="opcjonalnie: wklej swój token Mapbox" style="width:100%;margin-bottom:4px" oninput="saveMbToken(this.value)">
-      <p style="font-size:.56rem;color:var(--ink3);margin-bottom:10px">Zapisywany tylko na tym urządzeniu. Bez tokenu użyty będzie podkład Esri. Zalecane: ogranicz token do domeny w panelu Mapbox.</p>
+      <p style="font-size:.56rem;color:var(--ink3);margin-bottom:10px">Zapisywany tylko na tym urządzeniu. Po wpisaniu tokenu w przełączniku podkładów pojawi się dodatkowa warstwa 🛰️ Mapbox obok 🛰️ Esri. Offline pobiera kafle z aktualnie wybranego podkładu. Zalecane: ogranicz token do domeny w panelu Mapbox.</p>
       <div class="btns-col">
         <button class="btn btn-bl" id="dl-tiles" onclick="downloadTiles()">⬇ Pobierz kafle dla działek</button>
         <button class="btn btn-s" onclick="tilesInfo()">ℹ️ Ile zajmują kafle offline</button>
@@ -900,20 +900,31 @@ async function delPhoto(slot){
 let map,baseLayers,baseIdx=0,areaGroup,parcelLayers=[],parcelPolys=[],trackLine,trackPtMarkers,ptMarkerGroup,posMarker,accCircle;
 function mbToken(){return (localStorage.getItem('ft_mbtoken')||'').trim();}
 function osmUrl(){return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';}
-function satUrl(){const t=mbToken();return t?('https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token='+t):'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';}
-function satName(){return mbToken()?'🛰️ Satelita (Mapbox)':'🛰️ Satelita (Esri)';}
-const BASES=[
-  {name:'🗺️ Mapa',layer:()=>L.tileLayer(osmUrl(),{maxZoom:19,attribution:'© OpenStreetMap'})},
-  {name:'🛰️ Satelita',layer:()=>L.tileLayer(satUrl(),{maxZoom:20,attribution:mbToken()?'© Mapbox © Maxar':'© Esri'})},
-];
+const ESRI_SAT='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
+function mbSatUrl(){return 'https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token='+mbToken();}
+/* Lista podkładów budowana dynamicznie: Esri ZAWSZE, Mapbox dokładany TYLKO gdy wpisany token. */
+function getBases(){
+  const b=[
+    {key:'osm', name:'🗺️ Mapa', url:osmUrl(),  opts:{maxZoom:19,attribution:'© OpenStreetMap'}},
+    {key:'esri',name:'🛰️ Esri', url:ESRI_SAT, opts:{maxZoom:20,attribution:'© Esri'}},
+  ];
+  if(mbToken()) b.push({key:'mb',name:'🛰️ Mapbox',url:mbSatUrl(),opts:{maxZoom:20,attribution:'© Mapbox © Maxar'}});
+  return b;
+}
+/* Źródło kafli offline = aktualnie wybrany podkład satelitarny (Mapbox tylko gdy on jest aktywny). */
+function activeSatTpl(){
+  const bases=getBases(),cur=bases[baseIdx];
+  if(cur&&cur.key==='mb')return{tpl:mbSatUrl(),label:'Mapbox'};
+  return{tpl:ESRI_SAT,label:'Esri'};
+}
 let currentBase;
 let mapMode='nav';
 
 function initMap(){
   map=L.map('map',{maxZoom:20,zoomControl:false}).setView([52.40,16.92],13);
   L.control.zoom({position:'topright'}).addTo(map);
-  currentBase=BASES[0].layer().addTo(map);
-  document.getElementById('lyr-btn').textContent=BASES[1].name;
+  {const bases=getBases();baseIdx=0;currentBase=L.tileLayer(bases[0].url,bases[0].opts).addTo(map);
+   document.getElementById('lyr-btn').textContent=bases[(baseIdx+1)%bases.length].name;}
   areaGroup=L.layerGroup().addTo(map);
   ptMarkerGroup=L.layerGroup().addTo(map);
   trackLine=L.polyline([],{color:'#c0392b',weight:4,opacity:.85}).addTo(map);
@@ -924,11 +935,14 @@ function initMap(){
   renderPointMarkers();
 }
 function cycleBase(){
+  const bases=getBases();
+  if(baseIdx>=bases.length)baseIdx=0;
   map.removeLayer(currentBase);
-  baseIdx=(baseIdx+1)%BASES.length;
-  currentBase=BASES[baseIdx].layer().addTo(map);
+  baseIdx=(baseIdx+1)%bases.length;
+  const b=bases[baseIdx];
+  currentBase=L.tileLayer(b.url,b.opts).addTo(map);
   currentBase.bringToBack();
-  document.getElementById('lyr-btn').textContent=BASES[(baseIdx+1)%BASES.length].name;
+  document.getElementById('lyr-btn').textContent=bases[(baseIdx+1)%bases.length].name;
 }
 /* ----- MAPA OFFLINE: kafle dla działek ----- */
 function saveMbToken(v){localStorage.setItem('ft_mbtoken',(v||'').trim());}
@@ -937,7 +951,7 @@ function lat2y(lat,z){const r=lat*Math.PI/180;return Math.floor((1-Math.log(Math
 function parcelBounds(){if(!parcelLayers.length)return null;const b=L.latLngBounds([]);parcelLayers.forEach(l=>{if(l.getBounds)b.extend(l.getBounds());});return b.isValid()?b:null;}
 const TILE_CACHE='ft-tiles',ZMIN=12,ZMAX=17,TILE_CAP=3500;
 function tileUrlsForBounds(b){
-  const tpl=satUrl(),urls=[];
+  const tpl=activeSatTpl().tpl,urls=[];
   for(let z=ZMIN;z<=ZMAX;z++){
     const x0=lon2x(b.getWest(),z),x1=lon2x(b.getEast(),z),y0=lat2y(b.getNorth(),z),y1=lat2y(b.getSouth(),z);
     for(let x=Math.min(x0,x1);x<=Math.max(x0,x1);x++)for(let y=Math.min(y0,y1);y<=Math.max(y0,y1);y++)
@@ -952,7 +966,7 @@ async function downloadTiles(){
   if(!('caches'in window)){showToast('Brak obsługi pamięci offline');return;}
   const urls=tileUrlsForBounds(b),n=urls.length,mb=(n*30/1024).toFixed(1);
   if(n>TILE_CAP){setTilesStatus('Za duży obszar: '+n+' kafli (limit '+TILE_CAP+'). Zmniejsz obszar działek.');showToast('Za dużo kafli: '+n);return;}
-  if(!confirm('Pobrać '+n+' kafli (~'+mb+' MB, '+satName().replace(/.*\(|\)/g,'')+') dla obszaru działek? Wymaga sieci.'))return;
+  if(!confirm('Pobrać '+n+' kafli (~'+mb+' MB, '+activeSatTpl().label+') dla obszaru działek? Wymaga sieci.'))return;
   const btn=document.getElementById('dl-tiles');btn.disabled=true;
   const cache=await caches.open(TILE_CACHE);
   let done=0,failed=0,i=0;
@@ -1072,6 +1086,24 @@ function esc(t){return (t||'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':
 
 /* ----- ŚLAD GPX: nagrywanie na żywo + rysowanie ----- */
 let watchId=null,recState='off',recStart=0,recElapsed=0,timerInt=null;
+/* ----- Wake Lock: ekran nie gaśnie podczas nagrywania śladu (brak GPS w tle w PWA) ----- */
+let wakeLock=null;
+async function acquireWakeLock(){
+  if(!('wakeLock'in navigator))return false;
+  try{
+    wakeLock=await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release',()=>{wakeLock=null;});
+    return true;
+  }catch(e){wakeLock=null;return false;}
+}
+async function releaseWakeLock(){
+  try{if(wakeLock){await wakeLock.release();wakeLock=null;}}catch(e){}
+}
+/* iOS/Chrome zwalnia blokadę po ukryciu strony (ręczne zablokowanie, przełączenie aplikacji).
+   Po powrocie do appki, jeśli wciąż nagrywamy, pobieramy ją ponownie. */
+document.addEventListener('visibilitychange',()=>{
+  if(document.visibilityState==='visible'&&recState!=='off'&&!wakeLock)acquireWakeLock();
+});
 function renderTrackLine(){trackLine.setLatLngs(track.points.map(p=>[p.lat,p.lon]));updRecStats();}
 function addTrackPt(lat,lon,ele,spd,manual){
   const last=track.points[track.points.length-1];
@@ -1097,7 +1129,7 @@ function startRec(){
     if(recState==='rec')addTrackPt(c.latitude,c.longitude,c.altitude,c.speed);
   },err=>{showToast('GPS: '+({1:'brak zgody',2:'niedostępny',3:'timeout'}[err.code]||'błąd'));},
   {enableHighAccuracy:true,maximumAge:1000,timeout:15000});
-  showToast('⏺ Nagrywanie śladu');
+  acquireWakeLock().then(ok=>showToast(ok?'⏺ Nagrywanie · ekran nie zgaśnie':'⏺ Nagrywanie śladu'));
 }
 function pauseRec(){
   if(recState==='rec'){recState='pause';recElapsed+=Date.now()-recStart;
@@ -1112,7 +1144,7 @@ function stopRec(){
   if(watchId!=null){navigator.geolocation.clearWatch(watchId);watchId=null;}
   if(timerInt){clearInterval(timerInt);timerInt=null;}
   if(recState==='rec')recElapsed+=Date.now()-recStart;
-  recState='off';
+  recState='off';releaseWakeLock();
   const b=document.getElementById('recbtn');b.classList.remove('rec-on','paused');b.textContent='⏺ Nagrywaj ślad';
   document.getElementById('pausebtn').style.display='none';
   document.getElementById('recdot').classList.remove('live');
