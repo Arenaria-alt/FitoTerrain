@@ -938,16 +938,16 @@ function mbToken(){return (localStorage.getItem('ft_mbtoken')||'').trim();}
 function osmUrl(){return 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';}
 const ESRI_SAT='https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 function mbSatUrl(){return 'https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}.jpg?access_token='+mbToken();}
-/* GUGiK ortofotomapa (WMTS, matryca EPSG:3857 = zgodna z XYZ). HighResolution = najświeższe; gdyby kafle się nie ładowały, podmień na GUGIK_ORTO_STD. Wyświetlanie nie wymaga CORS; offline (fetch) zostaje na Esri. */
-const GUGIK_ORTO='https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/HighResolution?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTOFOTOMAPA&STYLE=default&FORMAT=image/jpeg&TILEMATRIXSET=EPSG:3857&TILEMATRIX=EPSG:3857:{z}&TILEROW={y}&TILECOL={x}';
-const GUGIK_ORTO_STD='https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMTS/StandardResolution?SERVICE=WMTS&REQUEST=GetTile&VERSION=1.0.0&LAYER=ORTOFOTOMAPA&STYLE=default&FORMAT=image/jpeg&TILEMATRIXSET=EPSG:3857&TILEMATRIX=EPSG:3857:{z}&TILEROW={y}&TILECOL={x}';
+/* GUGiK ortofotomapa przez WMS: Leaflet sam liczy zapytanie w układzie mapy (EPSG:3857, który GUGiK obsługuje), serwer reprojektuje obraz — nie trzeba trafiać w siatkę kafli WMTS ani dokładać proj4. Warstwa nazywa się „Raster". Wyświetlanie nie wymaga CORS; offline (fetch) zostaje na Esri. */
+const GUGIK_WMS='https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/StandardResolution';
+const GUGIK_WMS_HIRES='https://mapy.geoportal.gov.pl/wss/service/PZGIK/ORTO/WMS/HighResolution'; /* ostrzejsze, generowane z plików źródłowych — gdyby Standard był za mało szczegółowy, podmień GUGIK_WMS na to */
 const BLANK_TILE='data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 /* Lista podkładów budowana dynamicznie: Esri ZAWSZE, Mapbox dokładany TYLKO gdy wpisany token. */
 function getBases(){
   const b=[
     {key:'osm', name:'🗺️ Mapa', url:osmUrl(),  opts:{maxZoom:19,attribution:'© OpenStreetMap'}},
     {key:'esri',name:'🛰️ Esri', url:ESRI_SAT, opts:{maxZoom:20,attribution:'© Esri'}},
-    {key:'gugik',name:'🛰️ GUGiK',url:GUGIK_ORTO,opts:{maxZoom:20,maxNativeZoom:19,attribution:'© GUGiK Geoportal',errorTileUrl:BLANK_TILE}},
+    {key:'gugik',name:'🛰️ GUGiK',type:'wms',url:GUGIK_WMS,opts:{layers:'Raster',format:'image/jpeg',transparent:false,version:'1.1.1',tileSize:512,maxZoom:20,maxNativeZoom:19,updateWhenIdle:true,updateWhenZooming:false,keepBuffer:2,attribution:'© GUGiK Geoportal',errorTileUrl:BLANK_TILE}},
   ];
   if(mbToken()) b.push({key:'mb',name:'🛰️ Mapbox',url:mbSatUrl(),opts:{maxZoom:20,attribution:'© Mapbox © Maxar'}});
   return b;
@@ -961,10 +961,11 @@ function activeSatTpl(){
 let currentBase;
 let mapMode='nav';
 
+function makeBaseLayer(b){return b.type==='wms'?L.tileLayer.wms(b.url,b.opts):L.tileLayer(b.url,b.opts);}
 function initMap(){
   map=L.map('map',{maxZoom:20,zoomControl:false}).setView([52.40,16.92],13);
   L.control.zoom({position:'topright'}).addTo(map);
-  {const bases=getBases();baseIdx=0;currentBase=L.tileLayer(bases[0].url,bases[0].opts).addTo(map);
+  {const bases=getBases();baseIdx=0;currentBase=makeBaseLayer(bases[0]).addTo(map);
    document.getElementById('lyr-btn').textContent=bases[(baseIdx+1)%bases.length].name;}
   areaGroup=L.layerGroup().addTo(map);
   ptMarkerGroup=L.layerGroup().addTo(map);
@@ -981,7 +982,7 @@ function cycleBase(){
   map.removeLayer(currentBase);
   baseIdx=(baseIdx+1)%bases.length;
   const b=bases[baseIdx];
-  currentBase=L.tileLayer(b.url,b.opts).addTo(map);
+  currentBase=makeBaseLayer(b).addTo(map);
   currentBase.bringToBack();
   document.getElementById('lyr-btn').textContent=bases[(baseIdx+1)%bases.length].name;
 }
